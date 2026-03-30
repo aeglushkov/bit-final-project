@@ -19,17 +19,7 @@ conda activate spatialscore
 echo "=== Phase 2: Install PyTorch (CUDA 12.4 wheels, compatible with CUDA 12.8) ==="
 pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu124
 
-echo "=== Phase 3: Install flash-attn ==="
-# If this fails, change attn_implementation="flash_attention_2" to "eager"
-# in literature/spatialscore/code/test_qwen.py line 24
-pip install psutil
-pip install flash-attn --no-build-isolation || {
-    echo "WARNING: flash-attn failed to install."
-    echo "You'll need to change attn_implementation to 'eager' in test_qwen.py line 24."
-    echo "Continuing with remaining dependencies..."
-}
-
-echo "=== Phase 4: Install remaining dependencies ==="
+echo "=== Phase 3: Install remaining dependencies ==="
 pip install transformers==4.51.3
 pip install accelerate==1.5.2
 pip install qwen-vl-utils==0.0.10
