@@ -7,6 +7,8 @@
 
 set -e
 
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+
 echo "=== Phase 1: Create conda environment ==="
 # Don't use environment.yaml directly -- it has pinned system libs
 # (libgcc, libstdcxx, etc.) that won't work on a different machine.
@@ -38,7 +40,7 @@ huggingface-cli download Qwen/Qwen2.5-VL-3B-Instruct \
     --local-dir ~/models/Qwen2.5-VL-3B-Instruct
 
 echo "=== Phase 6: Download SpatialScore dataset images ==="
-cd literature/spatialscore/code
+cd "$REPO_ROOT/literature/spatialscore/code"
 huggingface-cli download --resume-download --repo-type dataset \
     haoningwu/SpatialScore \
     --local-dir ./ \
