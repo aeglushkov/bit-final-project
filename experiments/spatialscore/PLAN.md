@@ -61,8 +61,11 @@ CUDA_VISIBLE_DEVICES=0 TORCH_CUDNN_V8_API_DISABLED=1 python test_qwen.py \
 python ../../../experiments/spatialscore/analyze_results.py ./eval_results_test/qwen2_5vl-3b/
 python ../../../experiments/spatialscore/analyze_results.py ./eval_results_diverse/qwen2_5vl-3b/
 
-# 6. Run SpatialAgent inference (experiment 1 — 50 MMVP samples)
+# 6. Apply patch to authors' SpatialAgent code (needed after fresh clone/setup)
 cd literature/spatialscore/code
+patch -p1 < ../../../experiments/spatialscore/patches/fix-termination-msg-str.patch
+
+# 7. Run SpatialAgent inference (experiment 1 — 50 MMVP samples)
 CUDA_VISIBLE_DEVICES=0 python ../../../experiments/spatialscore/run_agent.py \
     --model_path ~/models/Qwen2.5-VL-3B-Instruct \
     --model_name qwen2_5vl-3b \
@@ -71,7 +74,7 @@ CUDA_VISIBLE_DEVICES=0 python ../../../experiments/spatialscore/run_agent.py \
     --checkpoints_dir ~/checkpoints \
     --max_steps 5
 
-# 7. Run SpatialAgent inference (experiment 2 — diverse samples)
+# 8. Run SpatialAgent inference (experiment 2 — diverse samples)
 CUDA_VISIBLE_DEVICES=0 python ../../../experiments/spatialscore/run_agent.py \
     --model_path ~/models/Qwen2.5-VL-3B-Instruct \
     --model_name qwen2_5vl-3b \
@@ -80,7 +83,7 @@ CUDA_VISIBLE_DEVICES=0 python ../../../experiments/spatialscore/run_agent.py \
     --checkpoints_dir ~/checkpoints \
     --max_steps 5
 
-# 8. Compare baseline vs agent
+# 9. Compare baseline vs agent
 python ../../../experiments/spatialscore/analyze_comparison.py \
     --baseline_dir ./eval_results_diverse/qwen2_5vl-3b \
     --agent_dir ./eval_results_diverse_agent/qwen2_5vl-3b \
@@ -92,3 +95,4 @@ python ../../../experiments/spatialscore/analyze_comparison.py \
 - `--dataset_name` arg in `test_qwen.py` is parsed but never used to filter data. Use filtered JSON files instead.
 - If `flash-attn` fails to install, change `attn_implementation="flash_attention_2"` to `"eager"` in `test_qwen.py` line 24.
 - SpatialAgent inference code was not released by the authors. We implemented the missing glue layer (actions.py, action_wrappers.py, model_registry.py, qwen_client.py, run_agent.py) in experiments/spatialscore/. All 31 unit tests pass locally.
+- The authors' `SpatialAgent/agent.py` requires a patch (`patches/fix-termination-msg-str.patch`) to work with local model clients. The default autogen `_is_termination_msg` assumes messages are dicts, but local clients pass plain strings. The patch must be applied after every fresh `setup.sh` run.
