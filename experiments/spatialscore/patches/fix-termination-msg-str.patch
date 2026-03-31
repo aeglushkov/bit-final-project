@@ -1,0 +1,39 @@
+Fix _is_termination_msg crash when message is a string
+
+The default autogen _is_termination_msg lambda calls x.get("content"),
+assuming x is always a dict. With local model clients (e.g. QwenLocalClient),
+the message passed to UserAgent.receive() is a plain string, causing:
+  AttributeError: 'str' object has no attribute 'get'
+
+Wrap string messages in {"content": message} before the termination check,
+matching autogen's own _message_to_dict convention.
+
+--- a/SpatialAgent/agent.py
++++ b/SpatialAgent/agent.py
+@@ -45,7 +45,7 @@
+         # Terminate planning if parsing fails and termination check returns true
+         # Otherwise proceed to parsing feedback or verification/execution
+-        if not parsed_status and self._is_termination_msg(message):
++        if not parsed_status and self._is_termination_msg({"content": message} if isinstance(message, str) else message):
+             return
+
+         if parsed_status:
+@@ -70,7 +70,8 @@
+                 if executed_status and 'image_paths' in executed_results:
+                     self.new_image_paths += executed_results['image_paths']
+
+-                if self.sender_hits_max_reply(sender) or self._is_termination_msg(message):
++                msg_for_check = {"content": message} if isinstance(message, str) else message
++                if self.sender_hits_max_reply(sender) or self._is_termination_msg(msg_for_check):
+                     # reset the consecutive_auto_reply_counter
+                     self._consecutive_auto_reply_counter[sender.name] = 0
+                     return
+@@ -85,7 +86,8 @@
+                 self.send(feedback_msg, sender, request_reply=True)
+         else:
+-            if self.sender_hits_max_reply(sender) or self._is_termination_msg(message):
++            msg_for_check = {"content": message} if isinstance(message, str) else message
++            if self.sender_hits_max_reply(sender) or self._is_termination_msg(msg_for_check):
+                 self._consecutive_auto_reply_counter[sender.name] = 0
+                 return
+             self._consecutive_auto_reply_counter[sender.name] += 1
