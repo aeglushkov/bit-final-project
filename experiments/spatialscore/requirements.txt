@@ -1,0 +1,26 @@
+# Core ML
+torch==2.6.0
+torchvision==0.21.0
+transformers==4.51.3
+accelerate==1.5.2
+qwen-vl-utils==0.0.10
+Pillow
+tqdm
+
+# Vendored autogen transitive deps
+openai>=1.0.0
+diskcache>=5.6.0
+docker>=7.0.0
+pydantic>=2.0.0
+tiktoken>=0.5.0
+FLAML>=2.0.0
+
+# Vision/spatial tools
+opencv-python>=4.8.0
+numpy>=1.24.0
+matplotlib>=3.7.0
+scipy>=1.10.0
+timm>=0.9.0
+
+# Testing
+pytest>=7.0.0
