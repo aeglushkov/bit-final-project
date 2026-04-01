@@ -121,8 +121,12 @@ class QwenLocalClient:
         AutoGen sends: [{"role": "system", "content": "..."}, {"role": "user", "content": "..."}]
         Qwen expects: [{"role": "system", "content": [{"type": "text", "text": "..."}]},
                         {"role": "user", "content": [{"type": "image", "image": "..."}, {"type": "text", "text": "..."}]}]
+
+        Images are embedded in the first user message unconditionally (from self.image_paths),
+        and in subsequent messages only when they reference image-N or <img path> patterns.
         """
         qwen_messages = []
+        first_user_msg_seen = False
         for msg in messages:
             role = msg.get("role", "user")
             content = msg.get("content", "")
@@ -133,8 +137,24 @@ class QwenLocalClient:
                 qwen_messages.append({"role": "system", "content": content})
                 continue
 
-            # Check if content references images (image-0, image-1, etc.)
-            # and if we have image_paths set on the client
+            # For the first user message, always embed all input images
+            # so the model can see them even if the question text doesn't
+            # reference image-0, image-1, etc. explicitly.
+            if not first_user_msg_seen and role == "user" and self.image_paths:
+                first_user_msg_seen = True
+                content_parts = []
+                for img_path in self.image_paths:
+                    content_parts.append({
+                        "type": "image",
+                        "image": img_path,
+                    })
+                content_parts.append({"type": "text", "text": content})
+                qwen_messages.append({"role": role, "content": content_parts})
+                continue
+
+            first_user_msg_seen = first_user_msg_seen or (role == "user")
+
+            # For subsequent messages, embed images only when referenced
             image_refs = set(re.findall(r'image-(\d+)', content))
 
             if image_refs and self.image_paths:

@@ -85,6 +85,22 @@ class TestQwenLocalClientCreate:
         assert len(sys_msgs) >= 1
         assert system_content in sys_msgs[0]["content"]
 
+    def test_first_user_msg_always_gets_images(self):
+        """First user message should always embed all input images, even without image-N refs."""
+        client = self._make_dry_client()
+        client.image_paths = ["/tmp/img0.jpg", "/tmp/img1.jpg"]
+        messages = [
+            {"role": "system", "content": "System prompt"},
+            {"role": "user", "content": "What color is the car?"},
+        ]
+        qwen_msgs = client._convert_messages(messages)
+        user_msg = qwen_msgs[1]  # index 1 because index 0 is system
+        assert isinstance(user_msg["content"], list)
+        image_parts = [p for p in user_msg["content"] if p.get("type") == "image"]
+        assert len(image_parts) == 2
+        assert image_parts[0]["image"] == "/tmp/img0.jpg"
+        assert image_parts[1]["image"] == "/tmp/img1.jpg"
+
     def test_image_paths_converted_in_messages(self):
         """Verify image-0 references get converted to image content parts."""
         client = self._make_dry_client()
@@ -98,6 +114,20 @@ class TestQwenLocalClientCreate:
         image_parts = [p for p in user_msg["content"] if p.get("type") == "image"]
         assert len(image_parts) == 1
         assert image_parts[0]["image"] == "/tmp/test.jpg"
+
+    def test_subsequent_msgs_dont_get_unconditional_images(self):
+        """Only the first user message gets unconditional images; later ones need refs."""
+        client = self._make_dry_client()
+        client.image_paths = ["/tmp/img0.jpg"]
+        messages = [
+            {"role": "user", "content": "First question"},
+            {"role": "user", "content": "Follow-up without image ref"},
+        ]
+        qwen_msgs = client._convert_messages(messages)
+        # First message should have image
+        assert isinstance(qwen_msgs[0]["content"], list)
+        # Second message should be plain text (no image-N refs, no <img> tags)
+        assert isinstance(qwen_msgs[1]["content"], str)
 
     def test_img_tag_pattern_converted(self):
         """Verify <img path> patterns from FeedbackPrompt are converted."""

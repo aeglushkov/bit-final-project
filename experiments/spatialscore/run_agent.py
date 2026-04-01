@@ -211,8 +211,12 @@ def run_agent_on_sample(item, user_agent_cls, assistant_agent_cls, prompt_gen, f
         if isinstance(client, QwenLocalClient):
             client.image_paths = image_paths
 
-    # Build the question message
+    # Build the question message, prepending image declarations so the model
+    # knows which images are available for tool calls (e.g. image-0, image-1).
     question = item.get("question", "")
+    if image_paths:
+        image_labels = ", ".join(f"image-{i}" for i in range(len(image_paths)))
+        question = f"The following input images are provided: {image_labels}.\n\n{question}"
 
     # Run the agent loop
     try:
