@@ -241,7 +241,7 @@ def main():
     args = parser.parse_args()
 
     if args.dataset_base_dir is None:
-        args.dataset_base_dir = os.path.dirname(args.dataset_json_path)
+        args.dataset_base_dir = os.path.dirname(os.path.dirname(args.dataset_json_path))
 
     # 1. Load Qwen model
     import torch
