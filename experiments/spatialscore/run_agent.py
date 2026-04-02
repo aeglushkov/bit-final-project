@@ -14,6 +14,7 @@ import os
 import sys
 import json
 import argparse
+import traceback
 from tqdm import tqdm
 
 # Add paths
@@ -146,6 +147,89 @@ def save_results(all_results, output_dir):
     print(f"\nOverall Accuracy: {overall_acc:.2f}% ({int(total_score)}/{total_samples})")
 
 
+def _patch_user_agent_receive(UserAgent):
+    """Monkey-patch UserAgent.receive to stop the conversation on Terminate actions.
+
+    The vendor agent.py sets final_answer when a Terminate action is parsed but
+    does NOT return — it continues with execution and feedback.  Autogen's default
+    _is_termination_msg checks for the literal string "TERMINATE", which never
+    matches the model's JSON output containing {"name": "Terminate", ...}.
+    This causes the conversation to keep going and eventually crash with
+    ``'str' object has no attribute 'get'`` inside autogen internals.
+
+    The patch intercepts the Terminate action right after parsing, records it,
+    and returns immediately so the conversation ends cleanly.
+    """
+    from utils.prompt import CoTAPrompt
+
+    _original_receive = UserAgent.receive
+
+    def _patched_receive(self, message, sender, request_reply=False, silent=False):
+        # Let the parent handle message bookkeeping (appends to _oai_messages, prints)
+        self._process_received_message(message, sender, silent)
+
+        parsed_results = self.parser.parse(message)
+        parsed_content = parsed_results['content']
+        parsed_status = parsed_results['status']
+
+        # --- Handle parsing failure ---
+        if not parsed_status:
+            msg_for_check = {"content": message} if isinstance(message, str) else message
+            if self.sender_hits_max_reply(sender) or self._is_termination_msg(msg_for_check):
+                self._consecutive_auto_reply_counter[sender.name] = 0
+                return
+            self._consecutive_auto_reply_counter[sender.name] += 1
+            feedback_msg = self.feedback_generator.get_prompt("parsing", parsed_results)
+            self.step_id += 1
+            self.send(feedback_msg, sender, request_reply=True)
+            return
+
+        # --- Parsing succeeded ---
+        from utils.prompt import DirectAnswerPrompt
+        if isinstance(self.parser.prompt_generator, DirectAnswerPrompt):
+            self.final_answer = parsed_content
+            self._consecutive_auto_reply_counter[sender.name] = 0
+            return
+
+        if isinstance(self.parser.prompt_generator, CoTAPrompt):
+            if len(parsed_content) > 0:
+                action_name = parsed_content['name']
+
+                # ---- FIX: return early on Terminate ----
+                if action_name == "Terminate":
+                    if "answer" in parsed_content.get('arguments', {}):
+                        self.final_answer = parsed_content['arguments']['answer']
+                    self.called_tools += [parsed_content]
+                    self._consecutive_auto_reply_counter[sender.name] = 0
+                    return
+                # ---- END FIX ----
+
+                self.called_tools += [parsed_content]
+
+            print("Called tools:", self.step_id, self.current_image_id, parsed_content, self.task)
+
+            executed_results = self.executor.execute(self.step_id, self.current_image_id, parsed_content, self.task)
+            executed_status = executed_results['status']
+
+            if executed_status and 'image_paths' in executed_results:
+                self.new_image_paths += executed_results['image_paths']
+
+            msg_for_check = {"content": message} if isinstance(message, str) else message
+            if self.sender_hits_max_reply(sender) or self._is_termination_msg(msg_for_check):
+                self._consecutive_auto_reply_counter[sender.name] = 0
+                return
+
+            self._consecutive_auto_reply_counter[sender.name] += 1
+
+            feedback_msg = self.feedback_generator.get_prompt("execution", executed_results)
+            if executed_status and getattr(executed_results['content'], 'image', None):
+                self.current_image_id += 1
+            self.step_id += 1
+            self.send(feedback_msg, sender, request_reply=True)
+
+    UserAgent.receive = _patched_receive
+
+
 def run_agent_on_sample(item, user_agent_cls, assistant_agent_cls, prompt_gen, feedback_gen,
                          parser_cls, executor_cls, action_registry, qwen_client,
                          input_folder, result_folder, max_steps, dataset_base_dir):
@@ -155,6 +239,11 @@ def run_agent_on_sample(item, user_agent_cls, assistant_agent_cls, prompt_gen, f
     from utils.executor import Executor
     from agent import UserAgent
     from autogen.agentchat import AssistantAgent
+
+    # Apply the Terminate-early-return patch (idempotent after first call)
+    if not getattr(UserAgent.receive, '_patched', False):
+        _patch_user_agent_receive(UserAgent)
+        UserAgent.receive._patched = True
 
     # Resolve image paths
     image_paths = []
@@ -223,6 +312,7 @@ def run_agent_on_sample(item, user_agent_cls, assistant_agent_cls, prompt_gen, f
         user_agent.initiate_chat(assistant, message=question, task=task)
     except Exception as e:
         print(f"Error on sample {task['id']}: {e}")
+        traceback.print_exc()
 
     return user_agent.final_answer, user_agent.called_tools
 
@@ -343,7 +433,7 @@ def main():
 
         result_entry = build_result_entry(item, pred_answer, is_correct, score)
         # Also store agent-specific metadata
-        result_entry["called_tools"] = [t.get("name", "") for t in (called_tools or [])]
+        result_entry["called_tools"] = [t.get("name", "") if isinstance(t, dict) else str(t) for t in (called_tools or [])]
         result_entry["num_steps"] = len(called_tools or [])
 
         all_results.append(result_entry)
