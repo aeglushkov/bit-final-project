@@ -64,6 +64,14 @@ def create_test50(data):
     return mmvp
 
 
+def create_test1000(data):
+    """1000 MMVP samples -- simplest evaluation path (single-image, multi-choice)."""
+    mmvp = [d for d in data if d.get("source") == "MMVP"][:1000]
+    if len(mmvp) < 1000:
+        print(f"WARNING: Only found {len(mmvp)} MMVP samples (expected 1000)")
+    return mmvp
+
+
 def create_diverse(data, per_source=10):
     """~10 samples per source, single-image only.
 
@@ -92,9 +100,14 @@ def main():
     print_stats(test50, "test50 (MMVP)")
     save_subset(test50, "SpatialScore_test50.json")
 
+    # Subset 2: 1000 MMVP samples
+    test1000 = create_test1000(data)
+    print_stats(test1000, "test1000 (MMVP)")
+    save_subset(test1000, "SpatialScore_test1000.json")
+
     # Subset 2: diverse single-image samples
-    print("\nCreating diverse subset (10 per source, single-image):")
-    diverse = create_diverse(data)
+    print("\nCreating diverse subset (100 per source, single-image):")
+    diverse = create_diverse(data, per_source=100)
     print_stats(diverse, "diverse (all single-image sources)")
     save_subset(diverse, "SpatialScore_diverse.json")
 
