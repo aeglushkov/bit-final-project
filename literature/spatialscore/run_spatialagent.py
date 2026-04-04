@@ -549,6 +549,49 @@ class QwenLocalClient:
         self.model_name = config.get("model", "qwen2_5vl-3b")
         self.image_paths: List[str] = []  # Set before each sample
         self.max_new_tokens = config.get("max_new_tokens", 1024)
+        self._hallucinated_answer: Optional[str] = None
+
+    def _clean_model_output(self, text: str) -> str:
+        """Post-process model output to handle Qwen's native <tool_call> format
+        and prevent hallucinated multi-step responses from polluting conversation history.
+
+        The 3B model often generates an entire multi-step conversation in one shot
+        (action + hallucinated OBSERVATION + Terminate), then outputs empty <tool_call>
+        tags on subsequent turns. Cleaning the output before it enters the conversation
+        history prevents this cascade.
+        """
+        if not text:
+            return text
+
+        # Extract JSON from <tool_call>...</tool_call> tags (Qwen native format)
+        tool_call_match = re.search(r'<tool_call>\s*(.*?)\s*</tool_call>', text, re.DOTALL)
+        if tool_call_match:
+            inner = tool_call_match.group(1).strip()
+            if inner:
+                text = inner
+
+        # Strip any remaining tool_call tags (including unclosed ones)
+        text = re.sub(r'</?tool_call>', '', text).strip()
+
+        # Before truncating, capture any hallucinated Terminate answer as a fallback
+        self._extract_hallucinated_answer(text)
+
+        # Truncate at "OBSERVATION:" to prevent hallucinated multi-step responses
+        # from entering the conversation history
+        obs_idx = text.find('OBSERVATION:')
+        if obs_idx > 0:
+            text = text[:obs_idx].strip()
+
+        return text
+
+    def _extract_hallucinated_answer(self, text: str):
+        """Scan the full (pre-truncation) model output for a hallucinated Terminate
+        action and save the answer as a fallback for when the agent exhausts max_steps."""
+        terminate_match = re.search(
+            r'"name"\s*:\s*"Terminate".*?"answer"\s*:\s*"([^"]*)"', text, re.DOTALL
+        )
+        if terminate_match:
+            self._hallucinated_answer = terminate_match.group(1).strip()
 
     def create(self, params: Dict[str, Any]) -> _Response:
         """Generate a response from local Qwen model."""
@@ -576,6 +619,22 @@ class QwenLocalClient:
             generated = [out[len(inp):] for inp, out in zip(inputs.input_ids, output_ids)]
             text = self.processor.batch_decode(generated, skip_special_tokens=True,
                                                clean_up_tokenization_spaces=False)[0].strip()
+
+            text = self._clean_model_output(text)
+
+            # Fallback: if cleaned output has no JSON, try decoding without
+            # stripping special tokens — content inside <tool_call> tags may
+            # have been lost if the tokenizer treats them as special tokens.
+            if not text or '{' not in text:
+                text_raw = self.processor.batch_decode(
+                    generated, skip_special_tokens=False,
+                    clean_up_tokenization_spaces=False,
+                )[0]
+                text_raw = re.sub(r'<\|[^|]*\|>', '', text_raw).strip()
+                text_fallback = self._clean_model_output(text_raw)
+                if text_fallback and '{' in text_fallback:
+                    text = text_fallback
+
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
         return _Response(choices=[_Choice(message=_Message(content=text))], model=self.model_name)
@@ -826,15 +885,19 @@ def clean_answer(raw_answer):
     return str(raw_answer).strip()
 
 
-def extract_fallback_answer(called_tools):
-    """Try to extract an answer from the last Terminate call in called_tools.
+def extract_fallback_answer(called_tools, qwen_client=None):
+    """Try to extract an answer from the last Terminate call in called_tools,
+    or from a hallucinated Terminate captured during output cleaning.
 
     When UserAgent.final_answer is None (e.g., max steps reached), we look
-    for any Terminate action that might have been recorded.
+    for any Terminate action that might have been recorded, then fall back
+    to any answer the model hallucinated in a multi-step response.
     """
     for tool in reversed(called_tools or []):
         if isinstance(tool, dict) and tool.get("name") == "Terminate":
             return tool.get("arguments", {}).get("answer", "")
+    if qwen_client and getattr(qwen_client, '_hallucinated_answer', None):
+        return qwen_client._hallucinated_answer
     return ""
 
 
@@ -1077,6 +1140,9 @@ Example:
         print(f"\n--- Sample {actual_idx} | source={item.get('source')} | type={item.get('question_type')} ---")
         print(f"  Q: {item.get('question', '')[:100]}...")
 
+        # Reset hallucinated answer from previous sample
+        qwen_client._hallucinated_answer = None
+
         # Run the agent
         final_answer, called_tools = run_agent_on_sample(
             item=item,
@@ -1088,9 +1154,9 @@ Example:
 
         # Fallback if agent didn't call Terminate
         if final_answer is None:
-            final_answer = extract_fallback_answer(called_tools)
+            final_answer = extract_fallback_answer(called_tools, qwen_client)
             if final_answer:
-                print(f"  [Fallback] Extracted answer from tool history: {final_answer}")
+                print(f"  [Fallback] Extracted answer from tool history / hallucinated response: {final_answer}")
             else:
                 print(f"  [Warning] No answer produced (max_steps reached without Terminate)")
 
