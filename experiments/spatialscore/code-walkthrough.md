@@ -14,13 +14,16 @@ Annotated notes from studying the SpatialScore codebase.
 
 ## 1. test_qwen.py (308 lines)
 
-*TODO: Add notes after studying*
-
 Key functions:
 - `load_model_and_components()` (line 20):
+  - Q: what's the difference between tokenizer and processor?
 - `process_model_input()` (line 29):
+  - Describe the input and tell how the model should reply
 - `generate_response()` (line 64):
+  - takes assistant_prompt, img_paths, images and question and pass it to the model. 
+  - Q: images variable is not used - what is it for?
 - Evaluation logic (lines 166-218):
+  - compares ground truth values and predictions
 
 ---
 
