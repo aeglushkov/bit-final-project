@@ -36,6 +36,8 @@ paper-thinking-in-space/
 
 **Convention for adding a new paper:** create `literature/<paper-name>/` with the PDF, summary.md, analysis.md, and optionally `code/` for authors' code.
 
+`summary.md` must follow [`literature/SUMMARY_TEMPLATE.md`](literature/SUMMARY_TEMPLATE.md) — a concise card with 5 emoji-prefixed sections (🏷️ SUBJECT, ❓ PROBLEM, 💡 IDEA, 🛠️ SOLUTION, 🏆 RESULTS) plus an optional 💭 THOUGHTS block. Keep it scannable; deeper method, dataset, and training detail belongs in `analysis.md`.
+
 ## Setup & Installation (authors' evaluation code)
 
 ```bash

@@ -1,19 +1,22 @@
 # SpatialScore: Towards Comprehensive Evaluation for Spatial Intelligence
 
-Holistic benchmark + solutions for evaluating and improving spatial understanding in multimodal LLMs. Introduces SpatialScore (5K samples, 30 tasks, 10 categories), SpatialCorpus (331K training QA pairs), and SpatialAgent (multi-agent system with 12 specialized tools).
+`Arxiv 2025` · 🏛️ Shanghai Jiao Tong University · 🏛️ Shanghai AI Laboratory
 
-- **Benchmark:** Most comprehensive spatial intelligence benchmark to date — covers multiple visual data types (real-world, simulated, AIGC), input modalities (images, multi-frame sequences, videos), and QA formats (judgment, multi-choice, open-ended).
-- **Evaluation:** 40 representative MLLMs evaluated, revealing a 26.48-point gap between best models and human performance (86.60).
-- **Data-driven solution:** SpatialCorpus enables supervised fine-tuning on spatial tasks (+10.47 improvement for Qwen3-VL-4B).
-- **Agent-based solution:** SpatialAgent uses 12 spatial perception tools with Plan-Execute and ReAct paradigms to improve spatial reasoning without training.
+[📄 Paper](https://arxiv.org/abs/2505.17012) · [💻 Code](https://github.com/haoningwu3639/SpatialScore/) · [📊 Dataset](https://huggingface.co/datasets/haoningwu/SpatialScore) · [🚀 Project](https://haoningwu3639.github.io/SpatialScore/)
 
-### URLs
-- [Project Page](https://haoningwu3639.github.io/SpatialScore/)
-- [arXiv](https://arxiv.org/abs/2505.17012)
-- [Code](https://github.com/haoningwu3639/SpatialScore/)
-- [Dataset](https://huggingface.co/datasets/haoningwu/SpatialScore)
+🏷️ **SUBJECT:** Holistic benchmark, training corpus, and agent system for evaluating and improving spatial intelligence in MLLMs.
 
-### Citation
-Wu, Haoning and Huang, Xiao and Chen, Yaohui and Zhang, Ya and Wang, Yanfeng and Xie, Weidi. "SpatialScore: Towards Comprehensive Evaluation for Spatial Intelligence." arXiv:2505.17012, 2025.
+❓ **PROBLEM:**
+- Existing spatial benchmarks cover narrow slices (single modality, single task type) and under-report where MLLMs actually fail.
+- No training corpus targets the specific sub-skills that spatial reasoning requires.
+- No standard tool-augmented baseline exists to measure how far agent wrappers can close the gap without retraining.
 
-**Affiliations:** Shanghai Jiao Tong University, Shanghai AI Laboratory
+💡 **IDEA:** Ship all three artifacts together — a broad **SpatialScore** benchmark, a matching **SpatialCorpus** for SFT, and a plug-in **SpatialAgent** — so data-centric and agent-centric improvements can be compared head-to-head.
+
+🛠️ **SOLUTION:**
+- **SpatialScore benchmark:** 5K samples · 30 tasks · 10 categories spanning real-world, simulated, and AIGC imagery across single-image, multi-frame, and video inputs.
+- **SpatialCorpus:** 331K supervised QA pairs for spatial SFT, covering perception, relations, and measurement.
+- **SpatialAgent:** multi-agent system with 12 specialized perception tools, driven by Plan-Execute and ReAct paradigms, zero training required.
+- **Broad evaluation:** 40 representative MLLMs benchmarked to expose systematic failure modes.
+
+🏆 **RESULTS:** Best MLLM still trails human performance (86.60) by **26.48 points** on SpatialScore; SFT on SpatialCorpus gives Qwen3-VL-4B a **+10.47** gain, and SpatialAgent improves reasoning without any training.

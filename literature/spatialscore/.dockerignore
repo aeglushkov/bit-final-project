@@ -1,0 +1,9 @@
+# Build context: literature/spatialscore/
+**/__pycache__
+**/*.pyc
+**/.git
+**/eval_results*
+**/eval_results_*
+**/agent_outputs
+code/eval_results*
+code/eval_results_*

@@ -24,8 +24,8 @@ pip install -r "$REPO_ROOT/experiments/spatialscore/requirements.txt"
 
 echo "=== Phase 5: Download Qwen2.5-VL-3B-Instruct model (~6GB) ==="
 mkdir -p ~/models
-huggingface-cli download Qwen/Qwen2.5-VL-3B-Instruct \
-    --local-dir ~/models/Qwen2.5-VL-3B-Instruct
+huggingface-cli download Qwen/Qwen2.5-VL-7B-Instruct \
+    --local-dir ~/models/Qwen2.5-VL-7B-Instruct
 
 echo "=== Phase 6: Download SpatialScore dataset images ==="
 cd "$REPO_ROOT/literature/spatialscore/code"
