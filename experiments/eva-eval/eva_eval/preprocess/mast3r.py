@@ -55,12 +55,17 @@ def estimate_video(
 
     poses, intrinsics_K, depthmaps = _extract_outputs(scene)
 
+    # Resave frames at MASt3R's working resolution so they match the depth maps.
+    # MASt3R's load_images resized the frames to roughly (image_size, image_size*3/4)
+    # depending on aspect ratio; depth maps come back at the same size.
+    H, W = depthmaps[0].shape[-2:]
+    _resize_frames_in_place(frames_dir, target_w=W, target_h=H)
+
     np.save(out_dir / "poses.npy", poses.astype(np.float32))
     for i, depth in enumerate(depthmaps):
         np.save(depth_dir / f"{i:06d}.npy", depth.astype(np.float32))
 
     K = intrinsics_K[0]
-    H, W = depthmaps[0].shape[-2:]
     fov_h = float(2.0 * np.arctan(W / (2.0 * float(K[0, 0]))))
     intrinsics_payload = {
         "fx": float(K[0, 0]),
@@ -122,26 +127,16 @@ def _extract_outputs(scene) -> tuple[np.ndarray, np.ndarray, list[np.ndarray]]:
             return x.detach().cpu().numpy()
         return np.asarray(x)
 
-    print("[_extract_outputs] step: get_im_poses")
     poses = _to_np(scene.get_im_poses())
-    print("  poses shape:", poses.shape)
     n = poses.shape[0]
 
-    print("[_extract_outputs] step: get_focals")
-    focals_raw = scene.get_focals()
-    print("  focals raw:", type(focals_raw).__name__, getattr(focals_raw, "shape", None))
-    focals = _to_np(focals_raw).reshape(-1).astype(np.float64)
+    focals = _to_np(scene.get_focals()).reshape(-1).astype(np.float64)
     if focals.size == 1:
         focals = np.broadcast_to(focals, (n,)).copy()
-    print("  focals shape:", focals.shape)
 
-    print("[_extract_outputs] step: get_principal_points")
-    pps_raw = scene.get_principal_points()
-    print("  pps raw:", type(pps_raw).__name__, getattr(pps_raw, "shape", None))
-    pps = _to_np(pps_raw).astype(np.float64)
+    pps = _to_np(scene.get_principal_points()).astype(np.float64)
     if pps.ndim == 1:
         pps = np.broadcast_to(pps.reshape(1, 2), (n, 2)).copy()
-    print("  pps shape:", pps.shape)
 
     K = np.zeros((n, 3, 3), dtype=np.float64)
     K[:, 0, 0] = focals
@@ -149,12 +144,35 @@ def _extract_outputs(scene) -> tuple[np.ndarray, np.ndarray, list[np.ndarray]]:
     K[:, 0, 2] = pps[:, 0]
     K[:, 1, 2] = pps[:, 1]
     K[:, 2, 2] = 1.0
-    print("  K built")
 
-    print("[_extract_outputs] step: get_depthmaps")
-    depths_raw = scene.get_depthmaps()
-    print("  depths raw:", type(depths_raw).__name__, "len" if hasattr(depths_raw, "__len__") else "no-len",
-          len(depths_raw) if hasattr(depths_raw, "__len__") else "?")
-    depthmaps = [_to_np(d) for d in depths_raw]
-    print("  depths[0] shape:", depthmaps[0].shape if depthmaps else "EMPTY")
+    # MASt3R-SfM stores per-image dense pointmaps after opt_depth=True.
+    # get_dense_pts3d returns world-frame (H, W, 3) per image; convert each
+    # to camera-frame depth via the pose so downstream Object3D code can
+    # apply its own pixel -> world transform with our intrinsics + pose.
+    pts3d_world = scene.get_dense_pts3d(clean_depth=True, subsample=1)
+    depthmaps: list[np.ndarray] = []
+    for i, p in enumerate(pts3d_world):
+        p_world = _to_np(p)  # (H, W, 3)
+        if p_world.ndim == 2:
+            # safety: some versions flatten to (H*W, 3); reshape using K's PP scale
+            raise RuntimeError(f"unexpected dense_pts3d shape {p_world.shape} for frame {i}")
+        R = poses[i, :3, :3]
+        t = poses[i, :3, 3]
+        p_cam = (p_world - t) @ R       # world -> camera (OpenCV convention)
+        depthmaps.append(p_cam[..., 2].astype(np.float32))
+
     return poses, K, depthmaps
+
+
+def _resize_frames_in_place(frames_dir: Path, target_w: int, target_h: int) -> None:
+    """Re-encode every JPEG in `frames_dir` at (target_w, target_h). Idempotent."""
+    import cv2
+
+    for p in sorted(frames_dir.glob("*.jpg")):
+        img = cv2.imread(str(p))
+        if img is None:
+            continue
+        if img.shape[1] == target_w and img.shape[0] == target_h:
+            continue
+        resized = cv2.resize(img, (target_w, target_h), interpolation=cv2.INTER_AREA)
+        cv2.imwrite(str(p), resized)
