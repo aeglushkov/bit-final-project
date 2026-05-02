@@ -14,9 +14,12 @@ LMDEPLOY_ENV="$ROOT/.conda/envs/lmdeploy"
 # Paper code
 PAPER_DIR="$ROOT/literature/EmbodiedVideoAgent/code"
 
+# eva-eval source root (so any env can `import eva_eval` via PYTHONPATH)
+EVA_EVAL_DIR="$ROOT/experiments/eva-eval"
+
 # MASt3R + dependencies
 MAST3R_DIR="$ROOT/.third-party/mast3r-sfm"
-MAST3R_PYTHONPATH="$MAST3R_DIR:$MAST3R_DIR/dust3r"
+MAST3R_PYTHONPATH="$MAST3R_DIR:$MAST3R_DIR/dust3r:$EVA_EVAL_DIR"
 
 # Caches
 export HF_HOME="$ROOT/.hf-cache"
