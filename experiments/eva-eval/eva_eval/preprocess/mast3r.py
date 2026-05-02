@@ -94,10 +94,10 @@ def _run_sparse_ga(
     image_size: int,
     device: str,
 ):
+    from dust3r.image_pairs import make_pairs
+    from dust3r.utils.image import load_images
     from mast3r.cloud_opt.sparse_ga import sparse_global_alignment
-    from mast3r.image_pairs import make_pairs
     from mast3r.model import AsymmetricMASt3R
-    from mast3r.utils.image import load_images
 
     cache_dir.mkdir(exist_ok=True)
     model = AsymmetricMASt3R.from_pretrained(model_name).to(device).eval()
