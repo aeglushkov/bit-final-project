@@ -106,20 +106,35 @@ def _run_sparse_ga(
     return sparse_global_alignment(
         frame_paths,
         pairs,
-        cache_dir=str(cache_dir),
-        model=model,
+        str(cache_dir),
+        model,
         device=device,
+        opt_depth=True,
+        shared_intrinsics=True,
     )
 
 
 def _extract_outputs(scene) -> tuple[np.ndarray, np.ndarray, list[np.ndarray]]:
-    poses_t = scene.get_im_poses()
-    K_t = scene.get_intrinsics()
-    depthmaps_t = scene.get_depthmaps()
+    import torch
 
-    poses = poses_t.detach().cpu().numpy()
-    K = K_t.detach().cpu().numpy()
-    if K.ndim == 2:
-        K = np.broadcast_to(K, (poses.shape[0], 3, 3)).copy()
-    depthmaps = [d.detach().cpu().numpy() if hasattr(d, "detach") else np.asarray(d) for d in depthmaps_t]
+    def _to_np(x):
+        if torch.is_tensor(x):
+            return x.detach().cpu().numpy()
+        return np.asarray(x)
+
+    poses = _to_np(scene.get_im_poses())
+
+    # SparseGA exposes focals + principal_points; build K explicitly so we
+    # don't depend on a get_intrinsics() helper that's not on every version.
+    focals = _to_np(scene.get_focals()).reshape(-1)  # one per image, scalar
+    pps = _to_np(scene.get_principal_points())       # (N, 2)
+    n = poses.shape[0]
+    K = np.zeros((n, 3, 3), dtype=np.float64)
+    K[:, 0, 0] = focals
+    K[:, 1, 1] = focals
+    K[:, 0, 2] = pps[:, 0]
+    K[:, 1, 2] = pps[:, 1]
+    K[:, 2, 2] = 1.0
+
+    depthmaps = [_to_np(d) for d in scene.get_depthmaps()]
     return poses, K, depthmaps
