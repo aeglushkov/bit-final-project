@@ -123,12 +123,19 @@ def _extract_outputs(scene) -> tuple[np.ndarray, np.ndarray, list[np.ndarray]]:
         return np.asarray(x)
 
     poses = _to_np(scene.get_im_poses())
-
-    # SparseGA exposes focals + principal_points; build K explicitly so we
-    # don't depend on a get_intrinsics() helper that's not on every version.
-    focals = _to_np(scene.get_focals()).reshape(-1)  # one per image, scalar
-    pps = _to_np(scene.get_principal_points())       # (N, 2)
     n = poses.shape[0]
+
+    # With shared_intrinsics=True these are scalars / shape (2,);
+    # without it, they're (N,) and (N, 2). Normalize to per-image arrays.
+    focals = _to_np(scene.get_focals()).reshape(-1).astype(np.float64)
+    if focals.size == 1:
+        focals = np.broadcast_to(focals, (n,)).copy()
+
+    pps = _to_np(scene.get_principal_points()).astype(np.float64)
+    if pps.ndim == 1:
+        # shared principal point as (2,)
+        pps = np.broadcast_to(pps.reshape(1, 2), (n, 2)).copy()
+
     K = np.zeros((n, 3, 3), dtype=np.float64)
     K[:, 0, 0] = focals
     K[:, 1, 1] = focals
