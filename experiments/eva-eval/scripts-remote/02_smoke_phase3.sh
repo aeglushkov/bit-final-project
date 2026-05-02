@@ -5,7 +5,7 @@
 set -e
 source "$(dirname "$0")/_env.sh"
 
-SCENE_ID="${1:-$(ls -t "$CACHE_ROOT" 2>/dev/null | head -1)}"
+SCENE_ID="${1:-$(find "$CACHE_ROOT" -maxdepth 1 -mindepth 1 -type d -printf '%f\n' 2>/dev/null | sort | head -1)}"
 SCENE_DIR="$CACHE_ROOT/$SCENE_ID"
 if [ -z "$SCENE_ID" ] || [ ! -f "$SCENE_DIR/meta.json" ]; then
     echo "ERROR: no Phase 2 cache. Run 01_smoke_phase2 first."
