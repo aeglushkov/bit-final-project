@@ -64,6 +64,7 @@ def build_memory_for_video(
         except ImportError:
             pass
 
+    skipped: list[tuple[int, str]] = []
     with _paper_code_context(paper_code_dir):
         from object_memory import ObjectMemory
 
@@ -78,15 +79,29 @@ def build_memory_for_video(
             depth = np.load(depth_path)
             depth_mask = np.logical_and(depth > valid_depth_min, depth < valid_depth_max)
 
-            memory.process_a_frame(
-                timestamp=float(timestamps[i]),
-                rgb=rgb,
-                depth=depth,
-                depth_mask=depth_mask,
-                pos=poses[i, :3, 3],
-                rmat=poses[i, :3, :3],
-                fov=fov,
-            )
+            try:
+                memory.process_a_frame(
+                    timestamp=float(timestamps[i]),
+                    rgb=rgb,
+                    depth=depth,
+                    depth_mask=depth_mask,
+                    pos=poses[i, :3, 3],
+                    rmat=poses[i, :3, :3],
+                    fov=fov,
+                )
+            except Exception as e:
+                # Paper's process_a_frame has a few known bugs (e.g. YOLO/SAM
+                # bbox-vs-mask count mismatch on frames with many tiny dets).
+                # Skip the frame rather than killing the whole scene; persistent
+                # memory accumulates fine from the surviving frames.
+                skipped.append((i, f"{type(e).__name__}: {e}"))
+
+    if skipped:
+        print(f"[warn] skipped {len(skipped)} of {n} frames in {video_cache_dir.name}")
+        for i, msg in skipped[:5]:
+            print(f"  frame {i}: {msg}")
+        if len(skipped) > 5:
+            print(f"  ... ({len(skipped) - 5} more)")
 
     if save_path is not None:
         save_memory(memory, save_path)

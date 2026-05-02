@@ -63,6 +63,38 @@ STOPWORDS: frozenset[str] = frozenset(
         # quantifiers + counting words
         "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
         "second", "third", "fourth", "fifth", "lot",
+        # verbs / scaffolding from VSI-Bench question phrasing
+        "want", "wanted", "wants", "need", "needs", "needed",
+        "use", "using", "used", "find", "finding", "found",
+        "try", "trying", "tried", "make", "making", "made",
+        "take", "taking", "took", "taken", "give", "giving", "gave", "given",
+        "put", "putting", "place", "placing", "placed",
+        "say", "said", "tell", "told", "asked", "tells",
+        "begin", "beginning", "start", "started", "starting",
+        "finish", "finished", "finishing", "stop", "stopped",
+        "go", "went", "gone", "going", "come", "coming", "came", "comes",
+        "stand", "stands", "stood", "sit", "sitting", "sat", "sits",
+        "open", "opens", "opened", "opening", "close", "closes", "closed", "closing",
+        "walk", "walks", "walking", "walked",
+        "move", "moves", "moved", "moving", "stay", "stays", "stayed",
+        "help", "helps", "helped", "helping",
+        "people", "person", "human", "robot", "agent", "user",
+        "perform", "performs", "performing", "performed", "action", "actions",
+        "complete", "completes", "completed", "completing", "task", "tasks",
+        "destination", "navigate", "navigation", "reach", "reached", "reaches",
+        "explored", "explore", "exploring",
+        "type", "types", "kind", "kinds", "shape", "shapes", "category", "categories",
+        "located", "locate", "location", "located",
+        # axes / geometry words
+        "axis", "axes", "plane", "planes", "origin", "cartesian",
+        "quadrant", "quadrants", "degrees", "degree", "radian", "radians",
+        "positive", "negative",
+        # adverbs / fillers
+        "then", "next", "before", "after", "during", "while", "until",
+        "once", "twice", "again", "often", "always", "sometimes", "never",
+        "please", "kindly", "fill", "show", "shown",
+        "exact", "exactly", "approximate", "approximately",
+        "clockwise", "counterclockwise",
     }
 )
 
