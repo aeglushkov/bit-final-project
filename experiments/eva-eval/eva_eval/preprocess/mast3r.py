@@ -146,20 +146,40 @@ def _extract_outputs(scene) -> tuple[np.ndarray, np.ndarray, list[np.ndarray]]:
     K[:, 2, 2] = 1.0
 
     # MASt3R-SfM stores per-image dense pointmaps after opt_depth=True.
-    # get_dense_pts3d returns world-frame (H, W, 3) per image; convert each
-    # to camera-frame depth via the pose so downstream Object3D code can
-    # apply its own pixel -> world transform with our intrinsics + pose.
-    pts3d_world = scene.get_dense_pts3d(clean_depth=True, subsample=1)
+    # subsample=1 triggers an internal assertion (every pixel must have
+    # positive depth); the authors' tested default is 8 (anchors every 8
+    # pixels). We get pts3d at coarse resolution then upsample to MASt3R's
+    # working resolution via bilinear interp.
+    import cv2
+
+    SUBSAMPLE = 8
+    pts3d_world = scene.get_dense_pts3d(clean_depth=True, subsample=SUBSAMPLE)
     depthmaps: list[np.ndarray] = []
+    target_h: int | None = None
+    target_w: int | None = None
+    if hasattr(scene, "imshapes") and len(scene.imshapes) > 0:
+        target_h, target_w = scene.imshapes[0]
     for i, p in enumerate(pts3d_world):
-        p_world = _to_np(p)  # (H, W, 3)
+        p_world = _to_np(p)  # (H_coarse, W_coarse, 3) world coords
         if p_world.ndim == 2:
-            # safety: some versions flatten to (H*W, 3); reshape using K's PP scale
-            raise RuntimeError(f"unexpected dense_pts3d shape {p_world.shape} for frame {i}")
+            # some versions flatten; infer (Hc, Wc) from the per-image shape stored
+            # by MASt3R itself; otherwise we can't reshape and have to bail.
+            n_pts = p_world.shape[0]
+            if target_h is None or target_w is None:
+                raise RuntimeError(f"flat dense_pts3d ({p_world.shape}) and no scene.imshapes")
+            hc, wc = target_h // SUBSAMPLE, target_w // SUBSAMPLE
+            if hc * wc != n_pts:
+                raise RuntimeError(f"flat dense_pts3d {p_world.shape} doesn't match target {hc}x{wc}={hc*wc}")
+            p_world = p_world.reshape(hc, wc, 3)
         R = poses[i, :3, :3]
         t = poses[i, :3, 3]
         p_cam = (p_world - t) @ R       # world -> camera (OpenCV convention)
-        depthmaps.append(p_cam[..., 2].astype(np.float32))
+        depth_coarse = p_cam[..., 2].astype(np.float32)
+        if target_h is None or target_w is None:
+            target_h = depth_coarse.shape[0] * SUBSAMPLE
+            target_w = depth_coarse.shape[1] * SUBSAMPLE
+        depth = cv2.resize(depth_coarse, (target_w, target_h), interpolation=cv2.INTER_LINEAR)
+        depthmaps.append(depth)
 
     return poses, K, depthmaps
 
