@@ -146,52 +146,34 @@ def _extract_outputs(scene) -> tuple[np.ndarray, np.ndarray, list[np.ndarray]]:
     K[:, 2, 2] = 1.0
 
     # MASt3R-SfM stores per-image dense pointmaps after opt_depth=True.
-    # subsample=1 triggers an internal assertion (every pixel must have
-    # positive depth); the authors' tested default is 8 (anchors every 8
-    # pixels). We get pts3d at coarse resolution then upsample to MASt3R's
-    # working resolution via bilinear interp.
-    import cv2
-
+    # subsample=8 is the authors' tested default (subsample=1 trips an
+    # internal assert on real videos). The pointmaps come back at MASt3R's
+    # working resolution (e.g. 384x512), already flattened to (H*W, 3) per
+    # image, packed inside a 3-tuple alongside per-pixel depths/confidences.
     SUBSAMPLE = 8
-    pts3d_world = scene.get_dense_pts3d(clean_depth=True, subsample=SUBSAMPLE)
+    dense_out = scene.get_dense_pts3d(clean_depth=True, subsample=SUBSAMPLE)
+    if not isinstance(dense_out, (list, tuple)):
+        raise RuntimeError(f"unexpected get_dense_pts3d return type: {type(dense_out).__name__}")
+    pts3d_list = dense_out[0] if isinstance(dense_out, tuple) else dense_out
+    if len(pts3d_list) != n:
+        raise RuntimeError(f"dense_pts3d list length {len(pts3d_list)} != n_frames {n}")
+
+    # Per-image (H, W) at MASt3R's working resolution
+    H, W = scene.imgs[0].shape[:2]
+
     depthmaps: list[np.ndarray] = []
-    target_h: int | None = None
-    target_w: int | None = None
-    if hasattr(scene, "imshapes") and len(scene.imshapes) > 0:
-        target_h, target_w = scene.imshapes[0]
-    print(f"[_extract_outputs] dense_pts3d outer type: {type(pts3d_world).__name__}, len: {len(pts3d_world)}")
-    for i, p in enumerate(pts3d_world):
-        if i == 0:
-            print(f"[_extract_outputs] dense_pts3d[0] type: {type(p).__name__}, is_tensor: {torch.is_tensor(p)}")
-            if isinstance(p, (list, tuple)):
-                print(f"  inner len={len(p)}, inner types: {[type(e).__name__ for e in p[:3]]}")
-                if torch.is_tensor(p[0]):
-                    print(f"  inner[0] shape: {p[0].shape}, device: {p[0].device}")
-            elif hasattr(p, "shape"):
-                print(f"  shape: {p.shape}, device: {getattr(p, 'device', '?')}")
-        # If this is a tuple like (pts3d_tensor, conf_tensor), take the first element.
-        if isinstance(p, (list, tuple)):
-            p = p[0]
-        p_world = _to_np(p)  # (H_coarse, W_coarse, 3) world coords
-        if p_world.ndim == 2:
-            # some versions flatten; infer (Hc, Wc) from the per-image shape stored
-            # by MASt3R itself; otherwise we can't reshape and have to bail.
-            n_pts = p_world.shape[0]
-            if target_h is None or target_w is None:
-                raise RuntimeError(f"flat dense_pts3d ({p_world.shape}) and no scene.imshapes")
-            hc, wc = target_h // SUBSAMPLE, target_w // SUBSAMPLE
-            if hc * wc != n_pts:
-                raise RuntimeError(f"flat dense_pts3d {p_world.shape} doesn't match target {hc}x{wc}={hc*wc}")
-            p_world = p_world.reshape(hc, wc, 3)
+    for i, p in enumerate(pts3d_list):
+        p_world = _to_np(p)            # (H*W, 3) flat
+        if p_world.ndim != 2 or p_world.shape[1] != 3:
+            raise RuntimeError(f"unexpected pts3d[{i}] shape {p_world.shape}")
+        if p_world.shape[0] != H * W:
+            raise RuntimeError(f"pts3d[{i}] {p_world.shape[0]} pts != {H}*{W}={H*W}")
+        p_world = p_world.reshape(H, W, 3)
+
         R = poses[i, :3, :3]
         t = poses[i, :3, 3]
         p_cam = (p_world - t) @ R       # world -> camera (OpenCV convention)
-        depth_coarse = p_cam[..., 2].astype(np.float32)
-        if target_h is None or target_w is None:
-            target_h = depth_coarse.shape[0] * SUBSAMPLE
-            target_w = depth_coarse.shape[1] * SUBSAMPLE
-        depth = cv2.resize(depth_coarse, (target_w, target_h), interpolation=cv2.INTER_LINEAR)
-        depthmaps.append(depth)
+        depthmaps.append(p_cam[..., 2].astype(np.float32))
 
     return poses, K, depthmaps
 
