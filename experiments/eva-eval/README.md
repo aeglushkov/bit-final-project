@@ -22,25 +22,39 @@ pip install -e .
 cd ../../../experiments/eva-eval
 pip install -e ".[dev]"
 
-# 3. Inference servers (paper-faithful split: text planner + InternVL2-8B VLM)
-pip install "vllm>=0.6.3"
+# 3. Inference servers (paper-faithful split: text planner via vllm + VLM via lmdeploy)
+# Two separate envs because vllm and lmdeploy pin different torch versions.
 
-# Planner (Qwen2.5-7B-Instruct, ~5 GB VRAM)
-CUDA_VISIBLE_DEVICES=0 vllm serve Qwen/Qwen2.5-7B-Instruct-AWQ \
+# Planner: Qwen2.5-7B-Instruct-AWQ via vllm (~5 GB VRAM)
+# vllm 0.6.6.post1 + torch 2.5.1+cu124, transformers pinned <4.50 to avoid
+# the hf_hub 1.x / `is_offline_mode` import break.
+pip install "vllm==0.6.6.post1" "transformers>=4.45.0,<4.50"
+CUDA_VISIBLE_DEVICES=0 \
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+vllm serve Qwen/Qwen2.5-7B-Instruct-AWQ \
     --port 18000 \
     --gpu-memory-utilization 0.25 \
-    --max-model-len 16384 &
-
-# VLM (InternVL2-8B, paper-faithful, ~6 GB VRAM)
-CUDA_VISIBLE_DEVICES=0 vllm serve OpenGVLab/InternVL2-8B-AWQ \
-    --port 18001 \
-    --gpu-memory-utilization 0.30 \
     --max-model-len 8192 \
-    --trust-remote-code &
+    --enforce-eager &
+
+# VLM: InternVL2-8B-AWQ via lmdeploy (~6 GB VRAM)
+# vllm 0.6.6's InternVL2 loader chokes on the AWQ wqkv combined weights
+# ("KeyError: model.layers.0.attention.wqkv.qweight"); lmdeploy's turbomind
+# backend natively supports the InternLM AWQ layout.
+# Use a *separate* env: torch 2.4.1+cu121, transformers <4.46, plus timm.
+pip install "lmdeploy>=0.6,<0.7" "transformers>=4.41.0,<4.46" timm einops
+CUDA_VISIBLE_DEVICES=0 \
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+lmdeploy serve api_server OpenGVLab/InternVL2-8B-AWQ \
+    --server-port 18001 \
+    --model-format awq \
+    --backend turbomind \
+    --cache-max-entry-count 0.4 &
 ```
 
 Combined VRAM ~12 GB, leaves headroom for CLIP/embedding lookups during
-eval. Tune `--gpu-memory-utilization` if you hit OOM.
+eval. Tune `--gpu-memory-utilization` (vllm) and `--cache-max-entry-count`
+(lmdeploy) if you hit OOM.
 
 For Azure GPT-4o set `AZURE_OPENAI_API_KEY` and `AZURE_OPENAI_ENDPOINT`
 before invoking any script.
