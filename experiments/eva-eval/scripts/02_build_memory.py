@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import traceback
 from pathlib import Path
 
 from eva_eval.preprocess.memory import build_memory_for_video
@@ -52,8 +53,10 @@ def main():
                 valid_depth_max=args.depth_max,
             )
         except Exception as e:
-            print(f"[fail] {d.name}: {e}", file=sys.stderr)
-            failures.append((str(d), str(e)))
+            tb = traceback.format_exc()
+            print(f"[fail] {d.name}: {type(e).__name__}: {e}", file=sys.stderr)
+            print(tb, file=sys.stderr)
+            failures.append((str(d), f"{type(e).__name__}: {e}\n{tb}"))
 
     if failures:
         log = (args.cache_root or args.video_cache.parent) / "memory_failures.jsonl"
