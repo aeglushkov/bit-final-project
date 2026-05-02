@@ -39,6 +39,30 @@ STOPWORDS: frozenset[str] = frozenset(
         "answer", "option", "options", "choose", "select", "based", "given", "asked",
         "ask", "show", "shows", "showing", "describe", "describes", "according",
         "you're", "i'm", "im", "youre",
+        # measurement / metric scaffolding (not objects)
+        "length", "width", "height", "depth", "dimension", "dimensions", "volume",
+        "area", "diameter", "radius", "perimeter",
+        "centimeters", "centimeter", "meters", "meter", "feet", "foot", "inches", "inch",
+        "measured", "measure", "measuring", "measurement", "measurements",
+        "longest", "shortest", "largest", "smallest", "tallest", "biggest",
+        "closest", "farthest", "furthest", "nearest", "next", "last", "first",
+        "single", "double", "triple", "multiple", "several",
+        "edge", "end", "ends", "corner", "corners", "point", "points",
+        "turn", "turning", "moving", "stand", "stands", "stood", "stops", "stopped",
+        "facing", "faced", "face", "look", "looks", "looked", "see", "sees", "seen", "view", "viewed",
+        "following", "follow", "follows", "follower", "followed",
+        "approximately", "exactly", "roughly", "about", "around",
+        "yes", "no", "none", "either", "neither", "both",
+        # generic colors and material adjectives that aren't objects
+        "red", "blue", "green", "yellow", "orange", "purple", "pink", "brown",
+        "black", "white", "gray", "grey", "beige", "dark", "light",
+        "wooden", "metal", "metallic", "plastic", "glass", "fabric", "leather",
+        # part-of-question vocabulary
+        "side", "sides", "above", "below", "behind", "behind", "front", "back", "right", "left",
+        "horizontal", "vertical", "diagonal",
+        # quantifiers + counting words
+        "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+        "second", "third", "fourth", "fifth", "lot",
     }
 )
 
