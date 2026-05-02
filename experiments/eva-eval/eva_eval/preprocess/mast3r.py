@@ -16,7 +16,7 @@ def estimate_video(
     out_dir: str | Path,
     fps: float = 1.0,
     image_size: int = 512,
-    scene_graph: str = "swin-5",
+    scene_graph: str = "swin-3",
     model_name: str = DEFAULT_MODEL,
     device: str = "cuda",
     max_frames: int | None = None,

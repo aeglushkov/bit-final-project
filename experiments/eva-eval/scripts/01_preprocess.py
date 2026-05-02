@@ -51,7 +51,7 @@ def main():
     ap.add_argument("--cache-root", type=Path, required=True, help="Output cache root; per-video subdir created.")
     ap.add_argument("--fps", type=float, default=1.0)
     ap.add_argument("--image-size", type=int, default=512)
-    ap.add_argument("--scene-graph", default="swin-5")
+    ap.add_argument("--scene-graph", default="swin-3")
     ap.add_argument("--model", default=DEFAULT_MODEL)
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--max-frames", type=int, default=None)
