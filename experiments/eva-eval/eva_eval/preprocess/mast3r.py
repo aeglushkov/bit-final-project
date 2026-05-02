@@ -122,19 +122,26 @@ def _extract_outputs(scene) -> tuple[np.ndarray, np.ndarray, list[np.ndarray]]:
             return x.detach().cpu().numpy()
         return np.asarray(x)
 
+    print("[_extract_outputs] step: get_im_poses")
     poses = _to_np(scene.get_im_poses())
+    print("  poses shape:", poses.shape)
     n = poses.shape[0]
 
-    # With shared_intrinsics=True these are scalars / shape (2,);
-    # without it, they're (N,) and (N, 2). Normalize to per-image arrays.
-    focals = _to_np(scene.get_focals()).reshape(-1).astype(np.float64)
+    print("[_extract_outputs] step: get_focals")
+    focals_raw = scene.get_focals()
+    print("  focals raw:", type(focals_raw).__name__, getattr(focals_raw, "shape", None))
+    focals = _to_np(focals_raw).reshape(-1).astype(np.float64)
     if focals.size == 1:
         focals = np.broadcast_to(focals, (n,)).copy()
+    print("  focals shape:", focals.shape)
 
-    pps = _to_np(scene.get_principal_points()).astype(np.float64)
+    print("[_extract_outputs] step: get_principal_points")
+    pps_raw = scene.get_principal_points()
+    print("  pps raw:", type(pps_raw).__name__, getattr(pps_raw, "shape", None))
+    pps = _to_np(pps_raw).astype(np.float64)
     if pps.ndim == 1:
-        # shared principal point as (2,)
         pps = np.broadcast_to(pps.reshape(1, 2), (n, 2)).copy()
+    print("  pps shape:", pps.shape)
 
     K = np.zeros((n, 3, 3), dtype=np.float64)
     K[:, 0, 0] = focals
@@ -142,6 +149,12 @@ def _extract_outputs(scene) -> tuple[np.ndarray, np.ndarray, list[np.ndarray]]:
     K[:, 0, 2] = pps[:, 0]
     K[:, 1, 2] = pps[:, 1]
     K[:, 2, 2] = 1.0
+    print("  K built")
 
-    depthmaps = [_to_np(d) for d in scene.get_depthmaps()]
+    print("[_extract_outputs] step: get_depthmaps")
+    depths_raw = scene.get_depthmaps()
+    print("  depths raw:", type(depths_raw).__name__, "len" if hasattr(depths_raw, "__len__") else "no-len",
+          len(depths_raw) if hasattr(depths_raw, "__len__") else "?")
+    depthmaps = [_to_np(d) for d in depths_raw]
+    print("  depths[0] shape:", depthmaps[0].shape if depthmaps else "EMPTY")
     return poses, K, depthmaps
