@@ -27,13 +27,13 @@ pip install "vllm>=0.6.3"
 
 # Planner (Qwen2.5-7B-Instruct, ~5 GB VRAM)
 CUDA_VISIBLE_DEVICES=0 vllm serve Qwen/Qwen2.5-7B-Instruct-AWQ \
-    --port 8000 \
+    --port 18000 \
     --gpu-memory-utilization 0.25 \
     --max-model-len 16384 &
 
 # VLM (InternVL2-8B, paper-faithful, ~6 GB VRAM)
 CUDA_VISIBLE_DEVICES=0 vllm serve OpenGVLab/InternVL2-8B-AWQ \
-    --port 8001 \
+    --port 18001 \
     --gpu-memory-utilization 0.30 \
     --max-model-len 8192 \
     --trust-remote-code &
