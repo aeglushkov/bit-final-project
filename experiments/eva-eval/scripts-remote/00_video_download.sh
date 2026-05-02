@@ -19,7 +19,8 @@ for fname in ("arkitscenes.zip", "scannet.zip", "scannetpp.zip", "test.jsonl"):
 PY
 
 for fname in arkitscenes.zip scannet.zip scannetpp.zip; do
-    src=$(find "$HF_HOME/hub" -name "$fname" -type f | head -1)
+    # HF cache stores files as symlinks to blobs/, so use -L to follow them
+    src=$(find -L "$HF_HOME/hub" -name "$fname" 2>/dev/null | head -1)
     if [ -z "$src" ]; then
         echo "ERROR: $fname not found in cache"; exit 1
     fi
