@@ -159,7 +159,19 @@ def _extract_outputs(scene) -> tuple[np.ndarray, np.ndarray, list[np.ndarray]]:
     target_w: int | None = None
     if hasattr(scene, "imshapes") and len(scene.imshapes) > 0:
         target_h, target_w = scene.imshapes[0]
+    print(f"[_extract_outputs] dense_pts3d outer type: {type(pts3d_world).__name__}, len: {len(pts3d_world)}")
     for i, p in enumerate(pts3d_world):
+        if i == 0:
+            print(f"[_extract_outputs] dense_pts3d[0] type: {type(p).__name__}, is_tensor: {torch.is_tensor(p)}")
+            if isinstance(p, (list, tuple)):
+                print(f"  inner len={len(p)}, inner types: {[type(e).__name__ for e in p[:3]]}")
+                if torch.is_tensor(p[0]):
+                    print(f"  inner[0] shape: {p[0].shape}, device: {p[0].device}")
+            elif hasattr(p, "shape"):
+                print(f"  shape: {p.shape}, device: {getattr(p, 'device', '?')}")
+        # If this is a tuple like (pts3d_tensor, conf_tensor), take the first element.
+        if isinstance(p, (list, tuple)):
+            p = p[0]
         p_world = _to_np(p)  # (H_coarse, W_coarse, 3) world coords
         if p_world.ndim == 2:
             # some versions flatten; infer (Hc, Wc) from the per-image shape stored
