@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections import Counter
 
 from eva_eval.eval.sampler import stratified_indices
