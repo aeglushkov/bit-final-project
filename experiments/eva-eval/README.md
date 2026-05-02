@@ -47,11 +47,20 @@ before invoking any script.
 
 ### MASt3R-SfM (Phase 2 preprocessing)
 
-Not on PyPI — clone and put on `PYTHONPATH`:
+Not on PyPI — clone and put on `PYTHONPATH`. Run in a **separate** env from
+`e-videoagent` (different torch version):
 
 ```sh
 git clone --recursive https://github.com/naver/mast3r ~/mast3r
 cd ~/mast3r && pip install -r requirements.txt
+
+# MASt3R's requirements.txt doesn't pin torch, so pip pulls the latest
+# (currently cu13) wheels that won't run against drivers <580. Pin to
+# CUDA 12.1 wheels which work on driver 525+ and the RTX 3090 stack.
+pip install --upgrade --force-reinstall --no-deps \
+    torch==2.4.1 torchvision==0.19.1 \
+    --index-url https://download.pytorch.org/whl/cu121
+
 mkdir -p checkpoints && cd checkpoints
 wget https://download.europe.naverlabs.com/ComputerVision/MASt3R/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth
 echo 'export PYTHONPATH=$HOME/mast3r:$PYTHONPATH' >> ~/.bashrc
