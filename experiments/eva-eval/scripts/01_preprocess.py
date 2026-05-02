@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import traceback
 from pathlib import Path
 
 from eva_eval.preprocess.mast3r import DEFAULT_MODEL, estimate_video
@@ -67,8 +68,10 @@ def main():
         try:
             _process_one(v, args.cache_root, args)
         except Exception as e:
-            print(f"[fail] {v.name}: {e}", file=sys.stderr)
-            failures.append((v, str(e)))
+            tb = traceback.format_exc()
+            print(f"[fail] {v.name}: {type(e).__name__}: {e}", file=sys.stderr)
+            print(tb, file=sys.stderr)
+            failures.append((v, f"{type(e).__name__}: {e}\n{tb}"))
 
     if failures:
         log = args.cache_root / "preprocess_failures.jsonl"
