@@ -26,13 +26,15 @@ PYTHONPATH="$PAPER_DIR" \
 
 echo
 echo "==> sanity check:"
-"$EVA_ENV/bin/python" - <<PY
+PAPER_DIR="$PAPER_DIR" SCENE_DIR="$SCENE_DIR" "$EVA_ENV/bin/python" - <<'PY'
+import os
 from eva_eval.memory.store import load_memory
-m = load_memory("$SCENE_DIR/memory.pkl")
+m = load_memory(os.path.join(os.environ["SCENE_DIR"], "memory.pkl"),
+                paper_code_dir=os.environ["PAPER_DIR"])
 print("static objects:", len(m["static_objects"]))
 print("dynamic       :", len(m["dynamic_objects"]))
 print("frames        :", len(m["frames"]))
-print("first 5 categories:", [o.category for o in m["static_objects"][:5]])
+print("first 10 categories:", sorted({o.category for o in m["static_objects"]})[:10])
 PY
 
 echo DONE_SMOKE_PHASE3
