@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Common env + paths for all remote runner scripts. Source this from each step.
+# Uses BASH_SOURCE so it resolves correctly regardless of where the outer
+# script lives (callers can be in scripts-remote/ or in .conda/).
 set -e
 
-ROOT=$(cd "$(dirname "$0")/../../.." && pwd)
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
 cd "$ROOT"
 
 # Conda envs
