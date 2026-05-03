@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eva-eval"
+version = "0.1.0"
+description = "VSI-Bench evaluation harness for Embodied VideoAgent with swappable LLM backends"
+requires-python = ">=3.9"
+dependencies = [
+    "openai>=1.40",
+    "langchain>=0.2",
+    "langchain-openai>=0.1.20",
+    "langchain-community>=0.2",
+    "pyyaml",
+    "pillow",
+    "numpy",
+    "opencv-python-headless",
+    "datasets",
+    "loguru",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+serve-vllm = ["vllm>=0.6.3"]
+mast3r = []  # filled in once we pin the MASt3R-SfM source
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["eva_eval*"]
+
+[tool.black]
+line-length = 240
+
+[tool.isort]
+profile = "black"
+line_length = 240
