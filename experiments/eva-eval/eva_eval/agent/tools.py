@@ -163,14 +163,28 @@ def make_tools(ctx: AgentContext):
     @tool
     def frame_VQA(action_input: str) -> str:
         """Run visual question answering on a specific frame. Action Input format: ("question", frame_id). The VLM first describes the frame, then answers the question."""
-        question, frame_id = parse_tuple_input(action_input, expected_arity=2)
-        return do_frame_vqa(ctx, str(question), int(frame_id))
+        try:
+            question, frame_id = parse_tuple_input(action_input, expected_arity=2)
+            frame_id = int(frame_id)
+        except (ValueError, TypeError) as e:
+            return (
+                f"(input parse error: {e}; expected format: (\"question\", N) "
+                "where N is an integer frame index from frame_localization)"
+            )
+        return do_frame_vqa(ctx, str(question), frame_id)
 
     @tool
     def object_VQA(action_input: str) -> str:
         """Run visual question answering on a specific object, with its 3D bounding box rendered on a frame containing it. Action Input format: ("question", object_id)."""
-        question, object_id = parse_tuple_input(action_input, expected_arity=2)
-        return do_object_vqa(ctx, str(question), int(object_id))
+        try:
+            question, object_id = parse_tuple_input(action_input, expected_arity=2)
+            object_id = int(object_id)
+        except (ValueError, TypeError) as e:
+            return (
+                f"(input parse error: {e}; expected format: (\"question\", N) "
+                "where N is an integer object_id from query_db or retrieve_objects_*)"
+            )
+        return do_object_vqa(ctx, str(question), object_id)
 
     @tool
     def query_db(sql: str) -> str:
