@@ -33,8 +33,15 @@ echo "==> summary:"
 cat "${OUT}.summary.json"
 echo
 echo "==> error rate:"
-grep -c "\"error\":" "$OUT" 2>/dev/null || echo "0"
-echo " of $(wc -l < "$OUT")"
+"$EVA_ENV/bin/python" - <<PY
+import json
+with open("$OUT") as f:
+    rows = [json.loads(l) for l in f if l.strip()]
+errs = [r for r in rows if r.get("error")]
+print(f"  {len(errs)} errors / {len(rows)} questions")
+for r in errs[:3]:
+    print(f"  id={r['id']}: {r['error'].splitlines()[0][:200]}")
+PY
 
 echo DONE_SMOKE_PHASE5
 date
