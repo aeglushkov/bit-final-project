@@ -36,22 +36,30 @@ def parse_final_answer(response: Any) -> str:
     return text
 
 
-def load_dataset_indices(limit: int | None, stratified: bool, seed: int):
+def load_dataset_indices(
+    limit: int | None,
+    stratified: bool,
+    seed: int,
+    scene_filter: set[str] | None = None,
+):
     from datasets import load_dataset
 
     ds = load_dataset("nyu-visionx/VSI-Bench", split="test")
-    if limit is None or limit >= len(ds):
-        return ds, list(range(len(ds)))
+    candidate = list(range(len(ds)))
+    if scene_filter is not None:
+        candidate = [i for i in candidate if ds[i]["scene_name"] in scene_filter]
+    if limit is None or limit >= len(candidate):
+        return ds, candidate
     if stratified:
-        idxs = stratified_indices(ds["question_type"], total=limit, seed=seed)
-    else:
-        import random
+        sub_qtypes = [ds[i]["question_type"] for i in candidate]
+        sub_idxs = stratified_indices(sub_qtypes, total=limit, seed=seed)
+        return ds, [candidate[i] for i in sub_idxs]
+    import random
 
-        rng = random.Random(seed)
-        idxs = list(range(len(ds)))
-        rng.shuffle(idxs)
-        idxs = sorted(idxs[:limit])
-    return ds, idxs
+    rng = random.Random(seed)
+    pool = candidate[:]
+    rng.shuffle(pool)
+    return ds, sorted(pool[:limit])
 
 
 def group_by_scene(ds, indices: list[int]) -> dict[str, list[int]]:
@@ -72,6 +80,7 @@ def run(
     seed: int = 42,
     max_iterations: int = 30,
     on_missing_cache: str = "skip",
+    only_cached: bool = True,
 ) -> dict:
     """Run VSI-Bench through the EVA agent. Writes one JSONL row per question
     to `output` and returns the aggregated metrics."""
@@ -80,7 +89,19 @@ def run(
 
     output.parent.mkdir(parents=True, exist_ok=True)
 
-    ds, indices = load_dataset_indices(limit=limit, stratified=stratified, seed=seed)
+    cached_scenes: set[str] | None = None
+    if only_cached:
+        cached_scenes = {
+            d.name for d in cache_root.iterdir() if d.is_dir() and (d / "memory.pkl").exists()
+        }
+        if not cached_scenes:
+            print(f"No cached scenes (memory.pkl) in {cache_root}; nothing to evaluate.")
+            return {"overall": 0.0, "n_questions": 0}
+        print(f"Restricting to {len(cached_scenes)} cached scenes")
+
+    ds, indices = load_dataset_indices(
+        limit=limit, stratified=stratified, seed=seed, scene_filter=cached_scenes
+    )
     by_scene = group_by_scene(ds, indices)
     print(f"Evaluating {len(indices)} questions across {len(by_scene)} scenes")
 

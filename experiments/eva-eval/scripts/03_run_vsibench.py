@@ -23,6 +23,12 @@ def main():
         default="skip",
         help="Behavior when a scene's memory.pkl is missing.",
     )
+    ap.add_argument(
+        "--all-scenes",
+        action="store_true",
+        help="Evaluate the full dataset, not just the scenes with cached memory. "
+             "(Default behavior is to restrict to cached scenes.)",
+    )
     args = ap.parse_args()
 
     run(
@@ -36,6 +42,7 @@ def main():
         seed=args.seed,
         max_iterations=args.max_iterations,
         on_missing_cache=args.on_missing_cache,
+        only_cached=not args.all_scenes,
     )
 
 
