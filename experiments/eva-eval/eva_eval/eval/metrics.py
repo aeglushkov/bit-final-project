@@ -43,11 +43,55 @@ def exact_match(pred: str, target: str) -> float:
     return 1.0 if str(pred).lower() == str(target).lower() else 0.0
 
 
+_NUMBER_WORDS = {
+    "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+    "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+    "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15,
+    "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20,
+    "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70,
+    "eighty": 80, "ninety": 90, "hundred": 100, "thousand": 1000,
+    "none": 0, "no": 0, "nothing": 0,
+    "single": 1, "double": 2, "triple": 3, "couple": 2, "few": 3, "several": 4,
+    "half": 0.5, "quarter": 0.25,
+}
+
+
+def _words_to_number(text: str) -> float | None:
+    """Convert word-form English numbers to a float. Handles single words,
+    'twenty-three'/'twenty three', 'one hundred', 'two and a half'.
+    Returns None if no recognizable number is present."""
+    s = text.lower().strip().rstrip(".,!?:;\"' ")
+    s = s.replace("-", " ").replace(" and ", " ")
+    if not s:
+        return None
+    if s in _NUMBER_WORDS:
+        return float(_NUMBER_WORDS[s])
+    tokens = [t for t in s.split() if t]
+    if not tokens or any(t not in _NUMBER_WORDS for t in tokens):
+        return None
+    total = 0.0
+    current = 0.0
+    for t in tokens:
+        v = _NUMBER_WORDS[t]
+        if v == 100 or v == 1000:
+            current = max(current, 1.0) * v
+            total += current
+            current = 0.0
+        else:
+            current += v
+    return total + current
+
+
 def to_float(pred) -> float | None:
+    if pred is None:
+        return None
     try:
         return float(pred)
     except (TypeError, ValueError):
-        return None
+        pass
+    if isinstance(pred, str):
+        return _words_to_number(pred)
+    return None
 
 
 def mean_relative_accuracy(pred: float, target: float, start: float = 0.5, end: float = 0.95, interval: float = 0.05) -> float:

@@ -35,6 +35,27 @@ def test_to_float_handles_garbage():
     assert to_float(2) == 2.0
 
 
+def test_to_float_word_numbers():
+    assert to_float("one") == 1.0
+    assert to_float("Two") == 2.0
+    assert to_float("ten") == 10.0
+    assert to_float("none") == 0.0
+    assert to_float("zero") == 0.0
+
+
+def test_to_float_compound_word_numbers():
+    assert to_float("twenty one") == 21.0
+    assert to_float("twenty-three") == 23.0
+    assert to_float("one hundred") == 100.0
+    assert to_float("two hundred") == 200.0
+
+
+def test_to_float_word_numbers_not_decoded():
+    # 'cannot' isn't a number; should still fail fast
+    assert to_float("cannot determine") is None
+    assert to_float("not provided") is None
+
+
 def test_mra_perfect_match():
     assert mean_relative_accuracy(10.0, 10.0) == 1.0
 
@@ -64,7 +85,12 @@ def test_score_one_na_perfect_then_off():
 
 
 def test_score_one_handles_unparseable_na_gt():
-    assert score_one("object_counting", "5", "five") == 0.0
+    # An English-word GT is now parsed thanks to _words_to_number; should
+    # match a digit pred.
+    assert score_one("object_counting", "5", "five") == 1.0
+    # Truly unparseable still scores 0.
+    assert score_one("object_counting", "5", "lots") == 0.0
+    assert score_one("object_counting", "abc", "5") == 0.0
 
 
 def test_score_one_unknown_type_raises():

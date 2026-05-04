@@ -29,7 +29,7 @@ else
         '$VLLM_ENV/bin/vllm' serve Qwen/Qwen2.5-7B-Instruct-AWQ \
             --port 18000 \
             --gpu-memory-utilization 0.45 \
-            --max-model-len 8192 \
+            --max-model-len 16384 \
             --enforce-eager \
             > '$LOG_QWEN' 2>&1
     " < /dev/null
