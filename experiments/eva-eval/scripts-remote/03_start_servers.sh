@@ -18,7 +18,7 @@ date
 #   vllm Qwen2.5-7B-AWQ (gpu-mem-util 0.45 of 24 GB)        ≈ 10.8 GB
 #   lmdeploy InternVL2-8B-AWQ (cache-max-entry-count 0.2)   ≈  6 GB
 #   leaves ~7 GB free for CLIP/embedding lookups during eval
-if pgrep -f "vllm serve" >/dev/null; then
+if pgrep -f "envs/vllm/bin/vllm serve" >/dev/null; then
     echo "vllm already running:"
     pgrep -af "vllm serve"
 else
@@ -39,14 +39,14 @@ else
         if curl -fs http://127.0.0.1:18000/v1/models >/dev/null 2>&1; then
             echo "[ready] Qwen on :18000 (after ${i}*5s)"; break
         fi
-        if ! pgrep -f "vllm serve" >/dev/null; then
+        if ! pgrep -f "envs/vllm/bin/vllm serve" >/dev/null; then
             echo "ERROR: Qwen died before ready"; tail -30 "$LOG_QWEN"; exit 1
         fi
         sleep 5
     done
 fi
 
-if pgrep -f "lmdeploy serve api_server" >/dev/null; then
+if pgrep -f "envs/lmdeploy/bin/lmdeploy serve api_server" >/dev/null; then
     echo "lmdeploy already running:"
     pgrep -af "lmdeploy serve api_server"
 else
@@ -69,7 +69,7 @@ for i in $(seq 1 60); do
     if curl -fs http://127.0.0.1:18001/v1/models >/dev/null 2>&1; then
         echo "[ready] InternVL2 on :18001 (after ${i}*5s)"; break
     fi
-    if ! pgrep -f "lmdeploy serve api_server" >/dev/null; then
+    if ! pgrep -f "envs/lmdeploy/bin/lmdeploy serve api_server" >/dev/null; then
         echo "ERROR: InternVL2 died before ready"; tail -30 "$LOG_INTERNVL2"; exit 1
     fi
     sleep 5
