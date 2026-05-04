@@ -35,6 +35,8 @@ def _sample_frame_paths(scene_dir: Path, n_frames: int) -> list[Path]:
         raise FileNotFoundError(f"no frames in {scene_dir}/frames")
     if len(frames) <= n_frames:
         return frames
+    if n_frames == 1:
+        return [frames[len(frames) // 2]]  # middle frame
     step = (len(frames) - 1) / (n_frames - 1)
     return [frames[int(round(i * step))] for i in range(n_frames)]
 
