@@ -15,11 +15,25 @@ def test_format_mca_includes_options_and_letter_instruction():
     assert "letter" in text
 
 
-def test_format_na_includes_single_word_instruction():
+def test_format_na_includes_single_number_instruction():
     doc = {"question_type": "object_counting", "question": "How many chairs?"}
     text = format_question(doc)
     assert "How many chairs?" in text
-    assert "single word or phrase" in text
+    # Stronger TIS-gemini variant: forbid anything but a number
+    assert "single number" in text
+
+
+def test_format_pre_prompt_prepended():
+    doc = {"question_type": "object_counting", "question": "How many chairs?"}
+    text = format_question(doc, pre_prompt="These are frames of a video.")
+    assert text.startswith("These are frames of a video.\n")
+    assert "How many chairs?" in text
+
+
+def test_format_no_pre_prompt_by_default():
+    doc = {"question_type": "object_counting", "question": "How many chairs?"}
+    text = format_question(doc)
+    assert not text.startswith("These are frames of a video.")
 
 
 def test_format_unknown_type_raises():

@@ -60,6 +60,7 @@ def run(
     seed: int = 42,
     n_frames: int = 8,
     pre_prompt: str = "These are frames of a video.",
+    max_tokens: int = 16,
     only_cached: bool = True,
 ) -> dict:
     """Run the raw-VLM baseline on VSI-Bench."""
@@ -115,9 +116,9 @@ def run(
 
             for qi in qidxs:
                 doc = ds[qi]
-                user_text = pre_prompt + "\n" + format_question(doc)
+                user_text = format_question(doc, pre_prompt=pre_prompt)
                 try:
-                    raw = _ask_vlm_with_frames(model, frames, user_text)
+                    raw = _ask_vlm_with_frames(model, frames, user_text, max_tokens=max_tokens)
                     pred = parse_final_answer(raw)
                     err = None
                 except Exception as e:

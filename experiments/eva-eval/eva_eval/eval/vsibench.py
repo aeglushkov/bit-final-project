@@ -11,16 +11,29 @@ from eva_eval.eval.metrics import MCA_QUESTION_TYPES, NA_QUESTION_TYPES, aggrega
 from eva_eval.eval.sampler import stratified_indices
 
 
-def format_question(doc: dict) -> str:
+VSIBENCH_PRE_PROMPT = "These are frames of a video."
+MCA_POST_PROMPT = "Answer with the option's letter from the given choices directly."
+# Stronger NA wording matches the TIS yaml's `gemini_api`/`gpt4v` variants;
+# closes the easy "single word or phrase" loophole that lets models reply
+# with sentences ("the answer is approximately five") that fuzzy_matching
+# truncates to "the" -> 0 score.
+NA_POST_PROMPT = "Do not response anything other than a single number!"
+
+
+def format_question(doc: dict, *, pre_prompt: str = "") -> str:
     qt = doc["question_type"]
     question = doc["question"]
+    parts: list[str] = []
+    if pre_prompt:
+        parts.append(pre_prompt)
     if qt in MCA_QUESTION_TYPES:
         opts = "Options:\n" + "\n".join(doc["options"])
-        post = "Answer with the option's letter from the given choices directly."
-        return f"{question}\n{opts}\n{post}"
-    if qt in NA_QUESTION_TYPES:
-        return f"{question}\nPlease answer the question using a single word or phrase."
-    raise ValueError(f"Unknown question_type: {qt!r}")
+        parts.extend([question, opts, MCA_POST_PROMPT])
+    elif qt in NA_QUESTION_TYPES:
+        parts.extend([question, NA_POST_PROMPT])
+    else:
+        raise ValueError(f"Unknown question_type: {qt!r}")
+    return "\n".join(parts)
 
 
 def parse_final_answer(response: Any) -> str:
@@ -132,7 +145,7 @@ def run(
 
             for qi in qidxs:
                 doc = ds[qi]
-                user_text = format_question(doc)
+                user_text = format_question(doc, pre_prompt=VSIBENCH_PRE_PROMPT)
                 try:
                     response = executor.invoke({"input": user_text})
                     pred = parse_final_answer(response)
