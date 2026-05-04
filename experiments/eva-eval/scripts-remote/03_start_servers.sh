@@ -13,14 +13,19 @@ mkdir -p "$ROOT/logs"
 echo "============ 03_start_servers ============"
 date
 
+# "Already running" detection via the actual /v1/models endpoint — the only
+# unambiguous signal. pgrep -f matches the script's own command line on this
+# host, producing false positives.
+qwen_up()      { curl -fs http://127.0.0.1:18000/v1/models >/dev/null 2>&1; }
+internvl2_up() { curl -fs http://127.0.0.1:18001/v1/models >/dev/null 2>&1; }
+
 # Order matters: vllm first so it gets clean GPU memory, then lmdeploy with
 # a small cache budget that fits in what's left. RTX 3090 24 GB:
 #   vllm Qwen2.5-7B-AWQ (gpu-mem-util 0.45 of 24 GB)        ≈ 10.8 GB
 #   lmdeploy InternVL2-8B-AWQ (cache-max-entry-count 0.2)   ≈  6 GB
 #   leaves ~7 GB free for CLIP/embedding lookups during eval
-if pgrep -f "envs/vllm/bin/vllm serve" >/dev/null; then
-    echo "vllm already running:"
-    pgrep -af "vllm serve"
+if qwen_up; then
+    echo "vllm already responding on :18000, skipping start"
 else
     echo "==> starting Qwen2.5-7B-Instruct-AWQ on :18000 -> $LOG_QWEN"
     HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
@@ -36,19 +41,16 @@ else
 
     echo "==> waiting for vllm before starting lmdeploy..."
     for i in $(seq 1 60); do
-        if curl -fs http://127.0.0.1:18000/v1/models >/dev/null 2>&1; then
+        if qwen_up; then
             echo "[ready] Qwen on :18000 (after ${i}*5s)"; break
-        fi
-        if ! pgrep -f "envs/vllm/bin/vllm serve" >/dev/null; then
-            echo "ERROR: Qwen died before ready"; tail -30 "$LOG_QWEN"; exit 1
         fi
         sleep 5
     done
+    qwen_up || { echo "ERROR: Qwen did not become ready"; tail -30 "$LOG_QWEN"; exit 1; }
 fi
 
-if pgrep -f "envs/lmdeploy/bin/lmdeploy serve api_server" >/dev/null; then
-    echo "lmdeploy already running:"
-    pgrep -af "lmdeploy serve api_server"
+if internvl2_up; then
+    echo "lmdeploy already responding on :18001, skipping start"
 else
     echo "==> starting InternVL2-8B-AWQ on :18001 -> $LOG_INTERNVL2"
     HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
@@ -66,17 +68,15 @@ fi
 echo
 echo "==> waiting up to 5 min for InternVL2 to be ready..."
 for i in $(seq 1 60); do
-    if curl -fs http://127.0.0.1:18001/v1/models >/dev/null 2>&1; then
+    if internvl2_up; then
         echo "[ready] InternVL2 on :18001 (after ${i}*5s)"; break
-    fi
-    if ! pgrep -f "envs/lmdeploy/bin/lmdeploy serve api_server" >/dev/null; then
-        echo "ERROR: InternVL2 died before ready"; tail -30 "$LOG_INTERNVL2"; exit 1
     fi
     sleep 5
 done
+internvl2_up || { echo "ERROR: InternVL2 did not become ready"; tail -30 "$LOG_INTERNVL2"; exit 1; }
 
-curl -fs http://127.0.0.1:18000/v1/models >/dev/null 2>&1 || { echo "ERROR: Qwen no longer responding"; exit 1; }
-curl -fs http://127.0.0.1:18001/v1/models >/dev/null 2>&1 || { echo "ERROR: InternVL2 not responding"; exit 1; }
+qwen_up      || { echo "ERROR: Qwen no longer responding"; exit 1; }
+internvl2_up || { echo "ERROR: InternVL2 not responding"; exit 1; }
 
 echo
 echo "==> GPU memory:"
