@@ -88,6 +88,15 @@ def estimate_video(
         "image_size": image_size,
     }
     (out_dir / "meta.json").write_text(json.dumps(meta, indent=2))
+
+    # MASt3R-SfM caches per-pair correspondences in .mast3r_cache, ~5 GB per
+    # scene, which fills the disk after ~30 scenes. Drop it now that
+    # poses.npy + depth/*.npy + intrinsics.json + meta.json are written.
+    cache_dir = out_dir / ".mast3r_cache"
+    if cache_dir.exists():
+        import shutil
+
+        shutil.rmtree(cache_dir, ignore_errors=True)
     return meta
 
 
