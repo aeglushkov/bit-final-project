@@ -94,6 +94,7 @@ def run(
     max_iterations: int = 30,
     on_missing_cache: str = "skip",
     only_cached: bool = True,
+    resume: bool = False,
 ) -> dict:
     """Run VSI-Bench through the EVA agent. Writes one JSONL row per question
     to `output` and returns the aggregated metrics."""
@@ -118,10 +119,30 @@ def run(
     by_scene = group_by_scene(ds, indices)
     print(f"Evaluating {len(indices)} questions across {len(by_scene)} scenes")
 
+    # Resume: read already-answered question IDs from any existing JSONL,
+    # so a restart skips them and appends the rest.
+    answered: set = set()
+    scored: list[dict] = []
+    if resume and output.exists():
+        with output.open("r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    r = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if r.get("error"):
+                    continue  # retry errored rows
+                answered.add(r["id"])
+                scored.append(r)
+        print(f"resume: skipping {len(answered)} previously answered questions")
+    open_mode = "a" if resume else "w"
+
     text_encoder = build_clip_text_encoder(paper_code_dir)
 
-    scored: list[dict] = []
-    with output.open("w") as out_f:
+    with output.open(open_mode) as out_f:
         for scene_name, qidxs in by_scene.items():
             video_cache_dir = cache_root / scene_name
             if not (video_cache_dir / "memory.pkl").exists():
@@ -129,6 +150,11 @@ def run(
                 print(msg, file=sys.stderr)
                 if on_missing_cache == "fail":
                     raise FileNotFoundError(msg)
+                continue
+            # If every question in this scene was already answered, skip the
+            # ~1 minute it takes to build the agent.
+            remaining = [qi for qi in qidxs if ds[qi].get("id", qi) not in answered]
+            if not remaining:
                 continue
             try:
                 executor, _ctx = build_agent(
@@ -143,7 +169,7 @@ def run(
                 print(f"[fail-build] {scene_name}: {e}", file=sys.stderr)
                 continue
 
-            for qi in qidxs:
+            for qi in remaining:
                 doc = ds[qi]
                 user_text = format_question(doc, pre_prompt=VSIBENCH_PRE_PROMPT)
                 try:

@@ -29,6 +29,12 @@ def main():
         help="Evaluate the full dataset, not just the scenes with cached memory. "
              "(Default behavior is to restrict to cached scenes.)",
     )
+    ap.add_argument(
+        "--resume",
+        action="store_true",
+        help="If --output already exists, skip questions whose IDs are already "
+             "answered without error and append the rest.",
+    )
     args = ap.parse_args()
 
     run(
@@ -43,6 +49,7 @@ def main():
         max_iterations=args.max_iterations,
         on_missing_cache=args.on_missing_cache,
         only_cached=not args.all_scenes,
+        resume=args.resume,
     )
 
 

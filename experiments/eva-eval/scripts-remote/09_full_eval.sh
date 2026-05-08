@@ -20,7 +20,8 @@ PYTHONPATH="$PAPER_DIR" \
     --cache-root "$CACHE_ROOT" \
     --paper-code-dir "$PAPER_DIR" \
     --classes-file "$CLASSES_FILE" \
-    --output "$OUT"
+    --output "$OUT" \
+    --resume
 
 echo
 echo "==> summary:"
