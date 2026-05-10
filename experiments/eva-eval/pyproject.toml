@@ -18,10 +18,11 @@ dependencies = [
     "opencv-python-headless",
     "datasets",
     "loguru",
+    "matplotlib",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "matplotlib"]
+dev = ["pytest"]
 serve-vllm = ["vllm>=0.6.3"]
 mast3r = []  # filled in once we pin the MASt3R-SfM source
 

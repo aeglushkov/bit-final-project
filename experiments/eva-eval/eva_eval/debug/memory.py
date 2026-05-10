@@ -130,7 +130,7 @@ def _object_catalog(ctx, objects: list) -> str:
 
 
 def _frame_stamps(ctx, *, frame_stride: int) -> str:
-    from PIL import Image, ImageDraw
+    from PIL import Image
 
     parts = []
     n = len(ctx.frame_index)

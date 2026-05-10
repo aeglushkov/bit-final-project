@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Stratified-sample 50 HM3D questions from the full openeqa-v0 questions JSON.
-# Idempotent: writes sampled_50.json, overwrites if --force.
+# Always overwrites $OPENEQA_SAMPLED_JSON. Run only once for reproducibility,
+# or update OPENEQA_SEED before re-running to get a different sample.
 set -euo pipefail
 source "$(dirname "$0")/_env.sh"
 

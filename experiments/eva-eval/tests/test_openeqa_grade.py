@@ -70,3 +70,13 @@ def test_aggregate_overall_and_per_category():
     assert math.isclose(out["per_category"]["spatial_reasoning"], 0.0)
     # overall mean across all rows = (5+3+1)/3 = 3 → c_score 50
     assert math.isclose(out["overall"], 50.0)
+
+
+def test_parse_judge_score_ignores_scale_reference():
+    from eva_eval.eval.openeqa_grade import parse_judge_score
+
+    # The judge mentions "1-5 scale" then gives a score of 3 at the end —
+    # the older greedy first-integer regex would have returned 1.
+    assert parse_judge_score("On a 1-5 scale, I rate the response a 3") == 3
+    # Searches from the end: "Final score: 4." has 4 at the end, not "out of 5"
+    assert parse_judge_score("Reasoning... Final score: 4.") == 4

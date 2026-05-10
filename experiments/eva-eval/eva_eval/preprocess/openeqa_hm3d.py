@@ -24,7 +24,9 @@ from PIL import Image
 
 # Diagonal matrix that flips Y and Z. Habitat is (+X right, +Y up, -Z forward,
 # OpenGL-style). OpenCV is (+X right, +Y down, +Z forward). The conversion is
-# self-inverse: applying it twice returns the original pose.
+# applied via the sandwich M @ pose @ M (NOT M @ pose) — both axes of the
+# rotation block need flipping, and the translation needs to remain in world
+# coordinates that themselves stay in OpenCV convention.
 _HABITAT_TO_OPENCV = np.diag([1.0, -1.0, -1.0, 1.0])
 
 
