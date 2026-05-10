@@ -51,6 +51,7 @@ def build_agent(
     text_encoder,
     planner_name: str | None = None,
     max_iterations: int = 30,
+    return_intermediate_steps: bool = False,
 ):
     """Assemble a ReAct agent over the six paper-spec tools, bound to one
     video's persistent memory.
@@ -60,6 +61,9 @@ def build_agent(
                       *_environment and frame_localization tools. Inject the
                       paper's CLIP text encoder here at the call site so this
                       module stays free of torch/clip imports.
+        return_intermediate_steps: when True, executor.invoke(...) returns the
+                      ReAct trace under the "intermediate_steps" key. Used by
+                      OpenEQA harness for the trace inspector.
     """
     from langchain.agents import AgentExecutor, create_react_agent
     from langchain.prompts import PromptTemplate
@@ -85,5 +89,6 @@ def build_agent(
         verbose=False,
         max_iterations=max_iterations,
         handle_parsing_errors=True,
+        return_intermediate_steps=return_intermediate_steps,
     )
     return executor, ctx
