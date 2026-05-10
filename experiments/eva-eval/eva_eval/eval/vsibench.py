@@ -96,6 +96,7 @@ def run(
     only_cached: bool = True,
     resume: bool = False,
     scene_filter: set[str] | None = None,
+    extended_schema: bool = False,
 ) -> dict:
     """Run VSI-Bench through the EVA agent. Writes one JSONL row per question
     to `output` and returns the aggregated metrics."""
@@ -178,6 +179,7 @@ def run(
                     text_encoder=text_encoder,
                     planner_name=planner,
                     max_iterations=max_iterations,
+                    extended_schema=extended_schema,
                 )
             except Exception as e:
                 print(f"[fail-build] {scene_name}: {e}", file=sys.stderr)

@@ -25,8 +25,7 @@ ATTENTION:
    - "longest dimension of X in cm"  →  use get_object_dimensions(object_id) AFTER retrieve_objects_by_appearance("X")
    - "distance between A and B in meters"  →  use get_distance(object_id_a, object_id_b) where the two arguments are integer object_ids (e.g. (1, 7), NOT ("refrigerator", "stove"))
    - "size of this room in square meters"  →  use estimate_room_size("")
-   - "how many X(s) are in this room"  →  use count_objects_matching("X"). DO NOT use COUNT(*) WHERE category='X': YOLO-World labels visually-similar objects with different category words (e.g., crate/box/bin/basket are all detected for the same physical crates), and the same physical object is often stored under multiple ids due to re-ID drift. count_objects_matching handles both — it finds visually-similar objects regardless of category label and deduplicates spatial duplicates.
-   These computed-answer tools are MORE ACCURATE than asking the VLM to estimate distances/sizes/counts from images.
+   These computed-answer tools are MORE ACCURATE than asking the VLM to estimate distances/sizes from images.
 4. Prioritize using retrieve_objects_by_appearance, retrieve_objects_by_environment, and frame_localization for finding relevant objects/frames before query_db.
 5. Once the relevant frames are located, use frame_VQA to ask questions about these frames.
 6. For "where" questions, interpret them as spatial location queries, not as requests to identify specific frames. Use frame_VQA to provide these answers.

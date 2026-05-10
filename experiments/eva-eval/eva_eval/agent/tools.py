@@ -178,59 +178,6 @@ def do_get_distance(ctx: AgentContext, object_id_a: int, object_id_b: int) -> st
     return f"closest-point distance({a.category}#{int(object_id_a)} <-> {b.category}#{int(object_id_b)}) = {dist_m:.3f} m"
 
 
-def do_count_objects_matching(
-    ctx: AgentContext,
-    text: str,
-    *,
-    similarity_threshold: float = 0.20,
-    dedup_distance_m: float = 0.5,
-) -> str:
-    """Count objects whose CLIP-appearance similarity to `text` exceeds the
-    threshold, after deduplicating spatially-close detections that are likely
-    re-ID failures (same physical object given multiple IDs across frames).
-
-    Why this tool exists: VSI-Bench questions like "How many crate(s)?" fail
-    against the basic schema in two ways:
-      (a) Vocabulary fragmentation: YOLO-World labels visually-similar boxes
-          as crate/box/bin/basket, so `WHERE category='crate'` misses most.
-      (b) Re-ID over-segmentation: noisy MASt3R poses cause one chair to be
-          stored under several IDs across frames, so naive COUNT(*) overshoots.
-    The retrieval-based match (a) addresses (a). The spatial dedup (b)
-    addresses (b).
-    """
-    text_emb = ctx.encode_text(text.strip().strip("\"'"))
-    candidates: list[tuple[float, int]] = []
-    for oid, obj in ctx.object_index.items():
-        feat = getattr(obj, "object_clip_feature", None)
-        if feat is None:
-            continue
-        sim = _cosine(text_emb, feat)
-        if sim >= similarity_threshold:
-            candidates.append((sim, oid))
-
-    if not candidates:
-        return f"count={0} (no objects with similarity>={similarity_threshold:.2f} to '{text}')"
-
-    candidates.sort(reverse=True)
-    kept: list[tuple[float, int, np.ndarray]] = []
-    for sim, oid in candidates:
-        obj = ctx.object_index[oid]
-        center = (obj.min_xyz + obj.max_xyz) / 2.0
-        if any(np.linalg.norm(center - c) < dedup_distance_m for _, _, c in kept):
-            continue
-        kept.append((sim, oid, center))
-
-    kept_ids = [oid for _, oid, _ in kept]
-    kept_categories = [ctx.object_index[oid].category for oid in kept_ids]
-    n_kept = len(kept_ids)
-    n_candidates = len(candidates)
-    return (
-        f"count={n_kept} (matched {n_candidates} candidates with sim>={similarity_threshold:.2f}, "
-        f"deduped to {n_kept} via {dedup_distance_m:.2f}m spatial threshold). "
-        f"kept_ids={kept_ids[:20]} categories={kept_categories[:20]}"
-    )
-
-
 def do_estimate_room_size(ctx: AgentContext) -> str:
     """Estimate the room's floor area in square meters from the AABBs in memory.
 
@@ -368,11 +315,6 @@ def make_tools(ctx: AgentContext, *, extended_schema: bool = False):
             """Estimate the room's floor area in SQUARE METERS from the AABBs in memory (convex-hull and bbox-span estimates of object centers). Use this for VSI-Bench `room_size_estimation` questions. Action Input: anything (ignored)."""
             return do_estimate_room_size(ctx)
 
-        @tool
-        def count_objects_matching(text: str) -> str:
-            """Count objects whose visual appearance matches a text description (e.g. "crate", "chair"), with spatial deduplication of re-ID duplicates. Use this for VSI-Bench `object_counting` questions ("how many X(s) are in this room?"). MORE RELIABLE than COUNT(*) WHERE category=... because it (a) finds visually-similar objects regardless of YOLO-World's category label and (b) deduplicates the same physical object detected multiple times across frames. Action Input: a string description like "crate"."""
-            return do_count_objects_matching(ctx, text)
-
-        tools.extend([get_object_dimensions, get_distance, estimate_room_size, count_objects_matching])
+        tools.extend([get_object_dimensions, get_distance, estimate_room_size])
 
     return tools

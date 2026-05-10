@@ -42,6 +42,13 @@ def main():
              "to a file containing one scene name per line (or a JSON list / "
              "selections.json with 'scene_name' fields).",
     )
+    ap.add_argument(
+        "--extended-schema",
+        action="store_true",
+        help="Use the extended SQL schema (bbox extents + dimensions/distance/"
+             "room_size tools) and the matching prompt. Default: paper-faithful "
+             "basic schema.",
+    )
     args = ap.parse_args()
 
     scene_filter: set[str] | None = None
@@ -76,6 +83,7 @@ def main():
         only_cached=not args.all_scenes,
         resume=args.resume,
         scene_filter=scene_filter,
+        extended_schema=args.extended_schema,
     )
 
 
