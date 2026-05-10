@@ -269,15 +269,16 @@ def make_tools(ctx: AgentContext, *, extended_schema: bool = False):
             )
         return do_object_vqa(ctx, str(question), object_id)
 
-    query_db_doc = (
-        f"Execute a read-only SQL SELECT against tables {schema_blurb} and Objects_Frames(object_id, frame_id). "
-        "Use this only when retrieve_objects_* and frame_localization are insufficient."
-    )
-
-    @tool
-    def query_db(sql: str) -> str:
-        return do_query_db(ctx, sql)
-    query_db.__doc__ = query_db_doc
+    if extended_schema:
+        @tool
+        def query_db(sql: str) -> str:
+            """Execute a read-only SQL SELECT against tables Objects(object_id, category, volume, min_x, min_y, min_z, max_x, max_y, max_z, cx, cy, cz, length_m, width_m, height_m, longest_edge_m) and Objects_Frames(object_id, frame_id). Use this only when retrieve_objects_* and frame_localization are insufficient."""
+            return do_query_db(ctx, sql)
+    else:
+        @tool
+        def query_db(sql: str) -> str:
+            """Execute a read-only SQL SELECT against tables Objects(object_id, category, volume) and Objects_Frames(object_id, frame_id). Use this only when retrieve_objects_* and frame_localization are insufficient."""
+            return do_query_db(ctx, sql)
 
     tools = [
         retrieve_objects_by_appearance,
