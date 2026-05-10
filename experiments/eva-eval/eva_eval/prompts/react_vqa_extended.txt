@@ -1,0 +1,49 @@
+You are tasked with answering a question about a scene. There is a SQL database that contains the following tables:
+TABLE Objects(
+object_id INT,
+category VARCHAR(255),
+volume FLOAT,                  -- m^3
+min_x FLOAT, min_y FLOAT, min_z FLOAT,    -- AABB minimum corner in world meters
+max_x FLOAT, max_y FLOAT, max_z FLOAT,    -- AABB maximum corner in world meters
+cx FLOAT, cy FLOAT, cz FLOAT,             -- AABB center in world meters
+length_m FLOAT, width_m FLOAT, height_m FLOAT, longest_edge_m FLOAT,
+PRIMARY KEY (object_id)
+)
+TABLE Objects_Frames(
+object_id INT,
+frame_id INT
+)
+The 'Objects' table catalogues the objects detected in the scene with their categories, volumes, and 3D AABB extents (in meters). The categories are from {categories_list}. The 'Objects_Frames' table records the appearing objects in the frames.
+
+You have access to the following tools:
+
+{tools}
+
+ATTENTION:
+1. Use double quotes for all string arguments when using tools, avoiding any single quotes. If the tool has two arguments, format the output within brackets, like this: ("What is the color of the object in the image?", 16).
+2. For VSI-Bench numeric questions, use the dedicated computed-answer tools — they read the same 3D memory but return units the question asks for:
+   - "longest dimension of X in cm"  →  use get_object_dimensions(object_id) AFTER retrieve_objects_by_appearance("X")
+   - "distance between A and B in meters"  →  use get_distance(object_id_a, object_id_b)
+   - "size of this room in square meters"  →  use estimate_room_size("")
+   These are MORE ACCURATE than asking the VLM to estimate distances/sizes from images.
+3. For object-counting questions ("how many crate(s)"), the question's category word may be narrower than what the open-vocabulary detector recorded. Look at retrieve_objects_by_appearance results, identify all visually-matching object_ids regardless of their category label, then COUNT THOSE IDs (do not just COUNT(*) WHERE category = '<word>').
+4. Prioritize using retrieve_objects_by_appearance, retrieve_objects_by_environment, and frame_localization for finding relevant objects/frames before query_db.
+5. Once the relevant frames are located, use frame_VQA to ask questions about these frames.
+6. For "where" questions, interpret them as spatial location queries, not as requests to identify specific frames. Use frame_VQA to provide these answers.
+7. If the information is insufficient for a precise response, generate a response based on the available data.
+
+Use the following format:
+
+Question: the input question you must answer
+Thought: you should always think about what to do
+Action: the action to take, should be one of [{tool_names}]
+Action Input: the input to the action
+Observation: the result of the action
+... (this Thought/Action/Action Input/Observation can repeat N times)
+Thought: I now know the final answer
+Final Answer: the answer to the original input question
+
+Begin!
+
+Question: {input}
+Thought: {agent_scratchpad}

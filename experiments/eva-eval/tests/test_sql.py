@@ -89,3 +89,30 @@ def test_format_rows_handles_empty():
     assert format_rows([], []) == "(no rows)"
     out = format_rows(["a", "b"], [(1, 2), (3, 4)])
     assert out.splitlines() == ["a | b", "1 | 2", "3 | 4"]
+
+
+def test_extended_schema_adds_bbox_columns():
+    objs, ti, fmap = _scene()
+    conn = build_sql_db(objs, fmap, ti, extended=True)
+    cols, rows = execute_readonly(
+        conn,
+        "SELECT object_id, length_m, width_m, height_m, longest_edge_m, cx, cy, cz FROM Objects ORDER BY object_id",
+    )
+    # Object 1: AABB [0,0,0]-[1,1,1] → length=x=1, height=y=1, width=z=1, center=(0.5,0.5,0.5)
+    assert rows[0] == (1, 1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 0.5)
+    # Object 3: AABB [0,2,0]-[4,4,1] → length=x=4, height=y=2, width=z=1, longest=4
+    assert rows[2] == (3, 4.0, 1.0, 2.0, 4.0, 2.0, 3.0, 0.5)
+
+
+def test_extended_schema_keeps_basic_columns_too():
+    objs, ti, fmap = _scene()
+    conn = build_sql_db(objs, fmap, ti, extended=True)
+    _, rows = execute_readonly(conn, "SELECT object_id, category, volume FROM Objects ORDER BY object_id")
+    assert rows == [(1, "chair", 1.0), (2, "chair", 2.0), (3, "table", 8.0)]
+
+
+def test_basic_schema_has_no_bbox_columns():
+    objs, ti, fmap = _scene()
+    conn = build_sql_db(objs, fmap, ti)  # extended defaults to False
+    with pytest.raises(Exception):
+        execute_readonly(conn, "SELECT length_m FROM Objects")

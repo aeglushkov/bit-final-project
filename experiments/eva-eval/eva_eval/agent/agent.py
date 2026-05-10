@@ -6,6 +6,7 @@ from eva_eval.agent.context import AgentContext
 from eva_eval.agent.tools import make_tools
 
 PROMPT_PATH = Path(__file__).resolve().parents[1] / "prompts" / "react_vqa.txt"
+PROMPT_PATH_EXTENDED = Path(__file__).resolve().parents[1] / "prompts" / "react_vqa_extended.txt"
 
 
 def _build_planner_llm(planner_name: str | None):
@@ -52,9 +53,10 @@ def build_agent(
     planner_name: str | None = None,
     max_iterations: int = 30,
     return_intermediate_steps: bool = False,
+    extended_schema: bool = False,
 ):
-    """Assemble a ReAct agent over the six paper-spec tools, bound to one
-    video's persistent memory.
+    """Assemble a ReAct agent over the paper-spec tools, bound to one video's
+    persistent memory.
 
     Args:
         text_encoder: callable text -> np.ndarray, used by the *_appearance,
@@ -64,6 +66,10 @@ def build_agent(
         return_intermediate_steps: when True, executor.invoke(...) returns the
                       ReAct trace under the "intermediate_steps" key. Used by
                       OpenEQA harness for the trace inspector.
+        extended_schema: when True, the SQL Objects table includes bbox extents
+                      and centers, AND three computed-answer tools are added:
+                      get_object_dimensions, get_distance, estimate_room_size.
+                      Required for VSI-Bench's strict numeric questions.
     """
     from langchain.agents import AgentExecutor, create_react_agent
     from langchain.prompts import PromptTemplate
@@ -75,11 +81,12 @@ def build_agent(
         vlm=vlm,
         text_encoder=text_encoder,
     )
-    tools = make_tools(ctx)
+    tools = make_tools(ctx, extended_schema=extended_schema)
     llm = _build_planner_llm(planner_name)
 
+    prompt_path = PROMPT_PATH_EXTENDED if extended_schema else PROMPT_PATH
     classes = _load_classes(Path(classes_file))
-    template_text = PROMPT_PATH.read_text().replace("{categories_list}", str(classes))
+    template_text = prompt_path.read_text().replace("{categories_list}", str(classes))
     prompt = PromptTemplate.from_template(template_text)
 
     agent = create_react_agent(llm, tools, prompt)
