@@ -42,6 +42,15 @@ OPENEQA_REPO_DIR="$ROOT/.third-party/openeqa"
 OPENEQA_CACHE_ROOT="$ROOT/cache"     # episodes go under cache/openeqa_hm3d/
 OPENEQA_QUESTIONS_JSON="$OPENEQA_CACHE_ROOT/openeqa_hm3d/questions.json"
 OPENEQA_SAMPLED_JSON="$OPENEQA_CACHE_ROOT/openeqa_hm3d/sampled_50.json"
-OPENEQA_BUNDLE_URL_TEMPLATE="${OPENEQA_BUNDLE_URL_TEMPLATE:-}"  # set this in your shell or a .env
+# Output of openeqa's data/hm3d/extract-frames.py (rendered RGB+depth+pose tuples).
+# Default location matches the openeqa repo's expected layout.
+OPENEQA_EXTRACTED_ROOT="${OPENEQA_EXTRACTED_ROOT:-$OPENEQA_REPO_DIR/data/frames/hm3d-v0}"
+OPENEQA_HABITAT_ENV="$ROOT/.conda/envs/openeqa-habitat"
+OPENEQA_HM3D_SCENES_DIR="${OPENEQA_HM3D_SCENES_DIR:-$OPENEQA_REPO_DIR/data/scene_datasets}"
+
+# Source HM3D credentials from .env if present (HM3D_TOKEN_ID / HM3D_TOKEN_SECRET).
+if [ -f "$ROOT/.env" ]; then
+    set -a; . "$ROOT/.env"; set +a
+fi
 
 mkdir -p "$OPENEQA_CACHE_ROOT/openeqa_hm3d"

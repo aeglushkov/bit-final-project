@@ -1,20 +1,29 @@
 """OpenEQA HM3D episode → cache-schema adapter.
 
-OpenEQA's pre-rendered HM3D episodes are downloaded via the script in
-facebookresearch/open-eqa. Per-frame layout (verified at runtime by 06_preprocess_openeqa.py):
-  <episode_id>/
-    rgb/<NNNNN>.png        (or .jpg)
-    depth/<NNNNN>.npy      (float32 metric meters)
-    pose/<NNNNN>.txt       (4x4 cam2world in Habitat convention; one matrix per file)
-    intrinsic.json         (fov_h or fx/fy/cx/cy at episode level)
+OpenEQA's pre-rendered HM3D episodes come from `data/hm3d/extract-frames.py`
+in facebookresearch/open-eqa. The actual on-disk layout is FLAT (one episode
+directory containing `<frame>-rgb.png`, `<frame>-depth.png`, `<frame>.txt`,
+plus `intrinsic_color.txt`/`intrinsic_depth.txt` once per directory):
 
-If the download format differs, _read_episode/_read_pose/_load_depth handle the
-common variants; if a brand-new format appears, extend those helpers.
+  <episode_id>/
+    intrinsic_color.txt        # 4x4 K matrix (extra row/col padded with zeros)
+    intrinsic_depth.txt        # same K (depth and rgb share intrinsics)
+    <frame_name>-rgb.png       # 1920x1080 RGB
+    <frame_name>-depth.png     # uint16 PNG; meters = uint16 / 65535 * 10
+    <frame_name>.txt           # 4x4 cam2world in Habitat (OpenGL) convention
+    <frame_name>.pkl           # original agent state (ignored by us)
+
+`adapt_episode` rewrites this into the eva-eval cache schema:
+  out/
+    frames/<NNNNNN>.jpg
+    depth/<NNNNNN>.npy         # float32 metric meters
+    poses.npy                  # (N, 4, 4) cam2world OpenCV convention
+    intrinsics.json            # fx, fy, cx, cy, width, height, fov_h
+    meta.json
 """
 from __future__ import annotations
 
 import json
-import shutil
 from pathlib import Path
 from typing import Any
 
@@ -22,12 +31,14 @@ import numpy as np
 from PIL import Image
 
 
-# Diagonal matrix that flips Y and Z. Habitat is (+X right, +Y up, -Z forward,
-# OpenGL-style). OpenCV is (+X right, +Y down, +Z forward). The conversion is
-# applied via the sandwich M @ pose @ M (NOT M @ pose) — both axes of the
-# rotation block need flipping, and the translation needs to remain in world
-# coordinates that themselves stay in OpenCV convention.
-_HABITAT_TO_OPENCV = np.diag([1.0, -1.0, -1.0, 1.0])
+# Right-multiplied by a Habitat (OpenGL) cam2world to produce the equivalent
+# OpenCV cam2world. The two conventions differ only in cam-space basis: OpenGL
+# has +Y up, -Z forward; OpenCV has +Y down, +Z forward. Translation is
+# unchanged. See https://github.com/facebookresearch/habitat-sim/issues/1093
+_OPENGL_CAM_TO_OPENCV_CAM = np.diag([1.0, -1.0, -1.0, 1.0])
+
+# Depth encoding used by OpenEQA's extract-frames.py: depth_meters = uint16 / 65535 * 10
+_OPENEQA_DEPTH_SCALE = 10.0 / 65535.0
 
 
 def intrinsics_from_fov(*, width: int, height: int, fov_h_rad: float) -> dict[str, float]:
@@ -44,72 +55,71 @@ def intrinsics_from_fov(*, width: int, height: int, fov_h_rad: float) -> dict[st
     }
 
 
+def intrinsics_from_K(K: np.ndarray, *, width: int, height: int) -> dict[str, float]:
+    """Build the cache intrinsics dict from a 3x3 (or 4x4 padded) K matrix."""
+    K = np.asarray(K, dtype=np.float64)
+    fx = float(K[0, 0])
+    fy = float(K[1, 1])
+    cx = float(K[0, 2])
+    cy = float(K[1, 2])
+    fov_h = 2.0 * float(np.arctan(width / (2.0 * fx)))
+    return {
+        "fx": fx,
+        "fy": fy,
+        "cx": cx,
+        "cy": cy,
+        "width": int(width),
+        "height": int(height),
+        "fov_h": float(fov_h),
+    }
+
+
 def habitat_to_opencv_pose(pose_4x4: np.ndarray) -> np.ndarray:
     """Convert a 4x4 cam2world from Habitat (OpenGL) to OpenCV convention.
-    Self-inverse: applying twice returns the original.
 
-    Only flips the rotation axes (Y and Z); translation is unchanged.
+    Right-multiplication by diag(1, -1, -1, 1) flips the Y and Z basis vectors
+    of camera-space (turning OpenGL's +Y up / -Z forward into OpenCV's +Y down
+    / +Z forward) while leaving the world-space translation column intact.
     """
     pose = np.asarray(pose_4x4, dtype=np.float64)
-    out = np.eye(4, dtype=np.float64)
-    # Flip Y and Z axes of rotation: multiply rows 1,2 by -1
-    out[0, :] = pose[0, :]
-    out[1, :] = -pose[1, :]
-    out[2, :] = -pose[2, :]
-    out[3, :] = pose[3, :]
-    # Undo the flip to translation (restore its original value)
-    out[0, 3] = pose[0, 3]
-    out[1, 3] = pose[1, 3]
-    out[2, 3] = pose[2, 3]
-    return out
+    return pose @ _OPENGL_CAM_TO_OPENCV_CAM
 
 
 def adapt_episode(
     episode_raw_dir: str | Path,
     out_dir: str | Path,
 ) -> dict[str, Any]:
-    """Convert one OpenEQA HM3D episode directory into the eva-eval cache schema.
-
-    Reads:    rgb/, depth/, pose/, intrinsic.json from `episode_raw_dir`
-    Writes:   frames/, depth/, poses.npy, intrinsics.json, meta.json in `out_dir`
-    Returns:  the meta dict
-    """
+    """Convert one extract-frames.py output directory into the eva-eval cache schema."""
     raw = Path(episode_raw_dir)
     out = Path(out_dir)
     (out / "frames").mkdir(parents=True, exist_ok=True)
     (out / "depth").mkdir(parents=True, exist_ok=True)
 
-    rgb_paths, depth_paths, pose_paths = _read_episode(raw)
-    n = len(rgb_paths)
-    if n == 0:
-        raise RuntimeError(f"No frames found in {raw}")
-    if not (n == len(depth_paths) == len(pose_paths)):
-        raise RuntimeError(f"Frame count mismatch in {raw}: rgb={n} depth={len(depth_paths)} pose={len(pose_paths)}")
+    frames = _list_frames(raw)
+    if not frames:
+        raise RuntimeError(f"No frames found in {raw} (expected <name>-rgb.png + <name>-depth.png + <name>.txt)")
 
-    intrinsics_raw = json.loads((raw / "intrinsic.json").read_text())
-    width, height = _image_size(rgb_paths[0])
-    fov_h = _read_fov_h(intrinsics_raw, width=width, height=height)
-    intrinsics = intrinsics_from_fov(width=width, height=height, fov_h_rad=fov_h)
+    width, height = _image_size(frames[0].rgb)
+    K = _read_intrinsic_color(raw / "intrinsic_color.txt")
+    intrinsics = intrinsics_from_K(K, width=width, height=height)
     (out / "intrinsics.json").write_text(json.dumps(intrinsics, indent=2))
 
-    poses = np.stack([
-        habitat_to_opencv_pose(_read_pose(p)) for p in pose_paths
-    ]).astype(np.float32)
+    poses = np.stack([habitat_to_opencv_pose(_read_pose_txt(f.pose)) for f in frames]).astype(np.float32)
     np.save(out / "poses.npy", poses)
 
-    for i, (rgb_p, depth_p) in enumerate(zip(rgb_paths, depth_paths)):
-        img = Image.open(rgb_p).convert("RGB")
+    for i, f in enumerate(frames):
+        img = Image.open(f.rgb).convert("RGB")
         if img.size != (width, height):
             img = img.resize((width, height), Image.BILINEAR)
         img.save(out / "frames" / f"{i:06d}.jpg", quality=85)
-        depth = _load_depth(depth_p)
+        depth = _load_depth_png(f.depth)
         np.save(out / "depth" / f"{i:06d}.npy", depth.astype(np.float32))
 
-    timestamps = list(range(n))  # placeholder — paper's process_a_frame uses these only as keys
+    timestamps = list(range(len(frames)))  # placeholder — paper's process_a_frame uses these only as keys
     meta = {
         "video": raw.name,
         "fps": 1.0,
-        "n_frames": n,
+        "n_frames": len(frames),
         "timestamps": timestamps,
         "source": "openeqa_hm3d",
     }
@@ -117,15 +127,28 @@ def adapt_episode(
     return meta
 
 
-def _read_episode(raw: Path) -> tuple[list[Path], list[Path], list[Path]]:
-    """Return sorted lists of (rgb, depth, pose) per-frame paths."""
-    rgb_dir = raw / "rgb"
-    depth_dir = raw / "depth"
-    pose_dir = raw / "pose"
-    rgb = sorted(p for p in rgb_dir.iterdir() if p.suffix.lower() in (".png", ".jpg", ".jpeg"))
-    depth = sorted(p for p in depth_dir.iterdir() if p.suffix.lower() in (".npy", ".png"))
-    pose = sorted(p for p in pose_dir.iterdir() if p.suffix.lower() in (".txt", ".json", ".npy"))
-    return rgb, depth, pose
+class _FrameTriple:
+    __slots__ = ("name", "rgb", "depth", "pose")
+
+    def __init__(self, name: str, rgb: Path, depth: Path, pose: Path):
+        self.name = name
+        self.rgb = rgb
+        self.depth = depth
+        self.pose = pose
+
+
+def _list_frames(raw: Path) -> list[_FrameTriple]:
+    """Discover frames in OpenEQA's flat layout. Each frame has three companion
+    files: `<name>-rgb.png`, `<name>-depth.png`, `<name>.txt`."""
+    frames: list[_FrameTriple] = []
+    for rgb in sorted(raw.glob("*-rgb.png")):
+        name = rgb.name[: -len("-rgb.png")]
+        depth = raw / f"{name}-depth.png"
+        pose = raw / f"{name}.txt"
+        if not (depth.exists() and pose.exists()):
+            continue
+        frames.append(_FrameTriple(name=name, rgb=rgb, depth=depth, pose=pose))
+    return frames
 
 
 def _image_size(path: Path) -> tuple[int, int]:
@@ -133,34 +156,21 @@ def _image_size(path: Path) -> tuple[int, int]:
         return img.size  # (width, height)
 
 
-def _read_fov_h(intrinsics_raw: dict, *, width: int, height: int) -> float:
-    """Extract horizontal FOV in radians from OpenEQA's intrinsic.json.
-    Accepts either 'fov_h' (radians), 'hfov' (degrees), or fx (px)."""
-    if "fov_h" in intrinsics_raw:
-        return float(intrinsics_raw["fov_h"])
-    if "hfov" in intrinsics_raw:
-        return float(np.deg2rad(float(intrinsics_raw["hfov"])))
-    if "fx" in intrinsics_raw:
-        return 2.0 * float(np.arctan(width / (2.0 * float(intrinsics_raw["fx"]))))
-    raise KeyError(f"intrinsic.json missing fov_h, hfov, or fx: keys={sorted(intrinsics_raw)}")
+def _read_intrinsic_color(path: Path) -> np.ndarray:
+    """Load the 4x4 (or 3x3) K matrix written by extract-frames.py:save_intrinsics."""
+    K = np.loadtxt(path)
+    if K.shape == (4, 4):
+        return K[:3, :3]
+    if K.shape == (3, 3):
+        return K
+    raise ValueError(f"intrinsic_color.txt has unexpected shape {K.shape}: {path}")
 
 
-def _read_pose(path: Path) -> np.ndarray:
-    """Load a 4x4 cam2world matrix from .txt (whitespace), .npy, or .json."""
-    if path.suffix == ".npy":
-        return np.load(path)
-    if path.suffix == ".json":
-        return np.array(json.loads(path.read_text()), dtype=np.float64)
+def _read_pose_txt(path: Path) -> np.ndarray:
     return np.loadtxt(path)
 
 
-def _load_depth(path: Path) -> np.ndarray:
-    """Load depth as float32 metric meters. Accepts .npy or 16-bit png (mm)."""
-    if path.suffix == ".npy":
-        return np.load(path).astype(np.float32)
-    if path.suffix == ".png":
-        # 16-bit PNG: assume millimeters (HM3D's pre-rendered convention if PNG)
-        from PIL import Image as _Image
-        arr = np.array(_Image.open(path))
-        return (arr.astype(np.float32) / 1000.0)
-    raise ValueError(f"Unsupported depth format: {path.suffix}")
+def _load_depth_png(path: Path) -> np.ndarray:
+    """Decode OpenEQA's uint16 PNG depth: meters = uint16 / 65535 * 10."""
+    arr = np.array(Image.open(path))
+    return arr.astype(np.float32) * _OPENEQA_DEPTH_SCALE
