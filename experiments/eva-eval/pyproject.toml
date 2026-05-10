@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest", "matplotlib"]
 serve-vllm = ["vllm>=0.6.3"]
 mast3r = []  # filled in once we pin the MASt3R-SfM source
 
