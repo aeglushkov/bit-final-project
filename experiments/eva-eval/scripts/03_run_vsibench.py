@@ -35,7 +35,32 @@ def main():
         help="If --output already exists, skip questions whose IDs are already "
              "answered without error and append the rest.",
     )
+    ap.add_argument(
+        "--scenes",
+        default=None,
+        help="Restrict eval to a comma-separated list of scene names, or a path "
+             "to a file containing one scene name per line (or a JSON list / "
+             "selections.json with 'scene_name' fields).",
+    )
     args = ap.parse_args()
+
+    scene_filter: set[str] | None = None
+    if args.scenes:
+        p = Path(args.scenes)
+        if p.exists():
+            text = p.read_text().strip()
+            if text.startswith("["):
+                import json as _json
+                items = _json.loads(text)
+                if items and isinstance(items[0], dict):
+                    scene_filter = {s["scene_name"] for s in items if "scene_name" in s}
+                else:
+                    scene_filter = set(items)
+            else:
+                scene_filter = {ln.strip() for ln in text.splitlines() if ln.strip() and not ln.startswith("#")}
+        else:
+            scene_filter = {s.strip() for s in args.scenes.split(",") if s.strip()}
+        print(f"Scene filter: {len(scene_filter)} scenes")
 
     run(
         cache_root=args.cache_root,
@@ -50,6 +75,7 @@ def main():
         on_missing_cache=args.on_missing_cache,
         only_cached=not args.all_scenes,
         resume=args.resume,
+        scene_filter=scene_filter,
     )
 
 

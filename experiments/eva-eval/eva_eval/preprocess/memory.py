@@ -50,7 +50,10 @@ def build_memory_for_video(
     if n != meta["n_frames"]:
         raise RuntimeError(f"Frame count mismatch in {video_cache_dir}: poses={n} vs meta={meta['n_frames']}")
 
-    fov = float(intrinsics["fov_h"])
+    # mast3r.py writes intrinsics["fov_h"] in radians (np.arctan returns radians),
+    # but the paper's utils.frame2d_to_camera3d_transformation does
+    # math.radians(0.5 * hfov) — it expects DEGREES. Convert at the boundary.
+    fov_deg = float(np.degrees(intrinsics["fov_h"]))
     frames_dir = video_cache_dir / "frames"
     depth_dir = video_cache_dir / "depth"
     timestamps = meta["timestamps"]
@@ -87,7 +90,7 @@ def build_memory_for_video(
                     depth_mask=depth_mask,
                     pos=poses[i, :3, 3],
                     rmat=poses[i, :3, :3],
-                    fov=fov,
+                    fov=fov_deg,
                 )
             except Exception as e:
                 # Paper's process_a_frame has a few known bugs (e.g. YOLO/SAM

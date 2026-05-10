@@ -95,6 +95,7 @@ def run(
     on_missing_cache: str = "skip",
     only_cached: bool = True,
     resume: bool = False,
+    scene_filter: set[str] | None = None,
 ) -> dict:
     """Run VSI-Bench through the EVA agent. Writes one JSONL row per question
     to `output` and returns the aggregated metrics."""
@@ -103,8 +104,19 @@ def run(
 
     output.parent.mkdir(parents=True, exist_ok=True)
 
-    cached_scenes: set[str] | None = None
-    if only_cached:
+    if scene_filter is not None:
+        cached_scenes = {
+            s for s in scene_filter
+            if (cache_root / s / "memory.pkl").exists()
+        }
+        missing = sorted(scene_filter - cached_scenes)
+        if missing:
+            print(f"[warn] {len(missing)} scenes in --scenes have no memory.pkl: {missing[:5]}{'...' if len(missing) > 5 else ''}")
+        if not cached_scenes:
+            print(f"No cached scenes from --scenes filter present in {cache_root}; nothing to evaluate.")
+            return {"overall": 0.0, "n_questions": 0}
+        print(f"Restricting to {len(cached_scenes)} explicit scenes from --scenes")
+    elif only_cached:
         cached_scenes = {
             d.name for d in cache_root.iterdir() if d.is_dir() and (d / "memory.pkl").exists()
         }
@@ -112,6 +124,8 @@ def run(
             print(f"No cached scenes (memory.pkl) in {cache_root}; nothing to evaluate.")
             return {"overall": 0.0, "n_questions": 0}
         print(f"Restricting to {len(cached_scenes)} cached scenes")
+    else:
+        cached_scenes = None
 
     ds, indices = load_dataset_indices(
         limit=limit, stratified=stratified, seed=seed, scene_filter=cached_scenes

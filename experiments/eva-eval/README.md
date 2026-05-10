@@ -149,6 +149,31 @@ score) plus `results/<name>.jsonl.summary.json` with aggregated metrics
 matching the leaderboard layout (overall + 8 task types, with
 `object_rel_direction` rolled up across easy/medium/hard).
 
+### Qualitative visuals (post-eval inspection)
+
+After a run finishes, sample a handful of good / mediocre / bad predictions
+per question type and render the scene's 3D object memory on a representative
+frame:
+
+```sh
+# 1. Locally: pick examples from results JSONL → selections.json
+python scripts/10_pick_visuals.py \
+    --results-jsonl results/full_qwen_internvl2.jsonl
+
+# 2. Remotely (where cache/ lives): render PNGs with frame + 3D AABBs + caption
+python scripts/10_render_visuals.py \
+    --selections results/visuals/full_qwen_internvl2/selections.json \
+    --cache-root cache/vsibench \
+    --paper-code-dir ../../literature/EmbodiedVideoAgent/code \
+    --out-dir results/visuals/full_qwen_internvl2
+```
+
+For each `reported_type` in `metrics.REPORTED_TASK_ORDER`: MCA types get
+`good`+`bad`, NA types get `good`+`mediocre`+`bad` (~20 PNGs total). Each
+PNG shows the frame with the most visible objects from the scene's
+`memory.pkl`, with one 3D bbox + category label per visible object, and a
+caption strip with question / GT / prediction / score.
+
 ## Switching models
 
 Edit `config/models.yaml` — change `default_model` at the top, or pass

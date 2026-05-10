@@ -66,6 +66,8 @@ def estimate_video(
         np.save(depth_dir / f"{i:06d}.npy", depth.astype(np.float32))
 
     K = intrinsics_K[0]
+    # NOTE: fov_h is in RADIANS. The paper's perception code expects degrees and
+    # consumers must convert (see eva_eval/preprocess/memory.py).
     fov_h = float(2.0 * np.arctan(W / (2.0 * float(K[0, 0]))))
     intrinsics_payload = {
         "fx": float(K[0, 0]),
