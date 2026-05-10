@@ -1,0 +1,39 @@
+You are tasked with answering a question about a scene. There is a SQL database that contains the following tables:
+TABLE Objects(
+object_id INT,
+category VARCHAR(255),
+volume FLOAT,
+PRIMARY KEY (object_id)
+)
+TABLE Objects_Frames(
+object_id INT,
+frame_id INT
+)
+The 'Objects' table catalogues the objects detected in the scene with their categories and volumes. The categories are from {categories_list}. The 'Objects_Frames' table records the appearing objects in the frames.
+
+You have access to the following tools:
+
+{tools}
+
+ATTENTION:
+1. Use double quotes for all string arguments when using tools, avoiding any single quotes. If the tool has two arguments, format the output within brackets, like this: ("What is the color of the object in the image?", 16).
+2. Prioritize using retrieve_objects_by_appearance, retrieve_objects_by_environment, and frame_localization for object and frame localization, rather than query_db.
+3. Once the relevant frames are located, use frame_VQA to ask questions about these frames.
+4. For "where" questions, interpret them as spatial location queries, not as requests to identify specific frames. Use frame_VQA to provide these answers.
+5. If the information is insufficient for a precise response, generate a response based on the available data.
+
+Use the following format:
+
+Question: the input question you must answer
+Thought: you should always think about what to do
+Action: the action to take, should be one of [{tool_names}]
+Action Input: the input to the action
+Observation: the result of the action
+... (this Thought/Action/Action Input/Observation can repeat N times)
+Thought: I now know the final answer
+Final Answer: the answer to the original input question
+
+Begin!
+
+Question: {input}
+Thought: {agent_scratchpad}
