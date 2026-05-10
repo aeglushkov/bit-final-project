@@ -311,7 +311,7 @@ def make_tools(ctx: AgentContext, *, extended_schema: bool = False):
             return do_get_distance(ctx, a, b)
 
         @tool
-        def estimate_room_size(_: str = "") -> str:
+        def estimate_room_size(query: str = "") -> str:
             """Estimate the room's floor area in SQUARE METERS from the AABBs in memory (convex-hull and bbox-span estimates of object centers). Use this for VSI-Bench `room_size_estimation` questions. Action Input: anything (ignored)."""
             return do_estimate_room_size(ctx)
 
