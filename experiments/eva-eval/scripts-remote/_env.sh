@@ -36,3 +36,12 @@ VIDEO_LIST="$ROOT/.video_list.txt"
 CLASSES_FILE="$ROOT/experiments/eva-eval/config/detection_classes.txt"
 
 mkdir -p "$CACHE_ROOT" "$RESULTS_DIR" "$VIDEO_DIR"
+
+# OpenEQA paths
+OPENEQA_REPO_DIR="$ROOT/.third-party/openeqa"
+OPENEQA_CACHE_ROOT="$ROOT/cache"     # episodes go under cache/openeqa_hm3d/
+OPENEQA_QUESTIONS_JSON="$OPENEQA_CACHE_ROOT/openeqa_hm3d/questions.json"
+OPENEQA_SAMPLED_JSON="$OPENEQA_CACHE_ROOT/openeqa_hm3d/sampled_50.json"
+OPENEQA_BUNDLE_URL_TEMPLATE="${OPENEQA_BUNDLE_URL_TEMPLATE:-}"  # set this in your shell or a .env
+
+mkdir -p "$OPENEQA_CACHE_ROOT/openeqa_hm3d"
