@@ -165,14 +165,97 @@ For the next dev500 run, **keep the extended schema** (geometry + dimensions/dis
 4. **`get_distance` prompt example**: agent stumbled on the tuple format (tried passing `("refrigerator", "stove")` strings instead of int IDs). Tighten the prompt example.
 5. **Tool-input parsing variance**: some questions hit `Agent stopped due to iteration limit` because the agent never recovered from a parse error. Could add a smarter parser or a recovery hint.
 
+## dev500 result (2026-05-11): extended schema is a *net regression*
+
+Ran the full 500-question stratified-sample with `--extended-schema` end-to-end (3.5 hr in tmux), comparing against the existing `dev500.jsonl.summary.json`. Both runs use the same 500 question IDs; the basic dev500 was on the pre-hfov-fix cache (May 7), so the comparison conflates the hfov fix with the schema/tools change.
+
+| task | basic (pre-fix) | extended (post-fix) | Δ |
+|---|---:|---:|---:|
+| **overall** | 25.30 | **22.23** | **−3.07** |
+| object_counting | 24.18 | 20.91 | −3.27 |
+| object_abs_distance | 17.64 | 20.00 | +2.36 |
+| **object_size_estimation** | 31.64 | **7.99** | **−23.64** ← collapse |
+| **room_size_estimation** | 13.64 | **37.64** | **+24.00** ← big win |
+| object_rel_distance | 20.00 | 20.00 | 0.00 |
+| object_rel_direction | 35.33 | 37.33 | +2.00 |
+| route_planning | 30.00 | 18.00 | −12.00 |
+| obj_appearance_order | 30.00 | 16.00 | −14.00 |
+
+Per-task deltas dwarf the overall delta because they cancel.
+
+### What the extended schema actually buys
+- **room_size_estimation +24** — `estimate_room_size` (convex hull / bbox span over object centers) is robustly better than VLM eyeballing across 50 scenes.
+- **object_abs_distance +2.4** — `get_distance` modestly helps; limited by AABB inflation/under-segmentation.
+- **object_rel_direction +2.0** — noise; new schema added nothing for direction.
+
+### What it breaks
+- **object_size_estimation −24** (investigated below — bbox quality + agent heuristic)
+- **route_planning −12 and obj_appearance_order −14** — these tasks should still use `frame_VQA`. The new prompt's "for numeric questions use the new tools" instruction is over-rotating the agent away from the VLM path for MCA tasks.
+
+## Why object_size_estimation collapsed — trace investigation
+
+Re-ran the 10 worst object_size_estimation failures with `--extended-schema --capture-trace`. Two stacked failure modes:
+
+### Stage 1 — `retrieve_objects_by_appearance` returns wrong objects when the queried category is outside YOLO-World's vocab
+
+VSI-Bench routinely asks about objects the open-vocabulary detector doesn't reliably catch. CLIP-text retrieval then top-K matches the closest available caption — often something visually unrelated:
+
+| asked for | top retrieval result |
+|---|---|
+| dishwasher | refrigerator |
+| stool | red pot holder / nightstand |
+| bathtub | detergent box / showerhead |
+| stove | window |
+| refrigerator | ceiling light |
+| door | gray cabinet |
+| ceiling light | thermostat / light switch |
+
+The agent then computes dimensions on the *wrong* object.
+
+### Stage 2 — agent does a ×10 or ×100 "correction" when the bbox number looks small
+
+When `get_object_dimensions` returns a small number (from the wrong object, or from an undersized AABB of the right object), the LLM appends a digit to make it "look reasonable in cm":
+
+| Q (GT in cm) | tool returned (cm) | agent answered |
+|---|---:|---:|
+| stool (75) | longest=21.9 | **219** (×10) |
+| bathtub (135) | longest=8.0 | **80** (×10) |
+| refrigerator (183) | longest=105.4 | **1054** (×10) |
+| door (210) | longest=37.4 | **3740** (×100) |
+| ceiling light (37) | longest=3.7 | **370** (×100) |
+
+The agent has the right *order-of-magnitude* prior on common objects and "fixes" the small bbox value by adding zeros. The result is 2–10× worse than the original VLM eyeball.
+
+### So the schema fix helps where VLM has no prior, hurts where VLM has a strong prior
+
+The basic schema's failure mode was that the agent had no path to a measurement and fell back to `frame_VQA("dimensions in cm?")`. The VLM can't measure, but it has a strong language prior on common-object sizes — toilets ~100 cm, refrigerators ~180 cm. Even when guessing it anchors on the right magnitude.
+
+The extended schema gives the agent a tool whose output is **less reliable than the language prior** for common objects in this pipeline, because:
+- many target objects aren't reliably detected (vocab mismatch),
+- detected objects are often only seen in 1 frame (so AABB is a slice, not the full object),
+- when the AABB is right (e.g. the worst-20 toilet case), the tool wins decisively (0 → 0.82).
+
+## Two underlying root causes (and what to fix)
+
+**A. AABBs are systematically undersized when visibility is low.** Every scene I checked had 47–51% of objects visible in only one frame. Paper's re-ID thresholds (`Visual > 0.45`, `IoU > 0.2`) were tuned for GT poses; under MASt3R-noisy poses, detections of the same physical object don't merge across frames, so the persistent AABB covers one detection mask's depth back-projection — a slice of the real object. The bathtub trace shows it concretely: GT=165 cm, AABB height=79.6 cm (≈0.48× real size).
+
+**B. `retrieve_objects_by_appearance` returns top-K matches unconditionally**, even when the closest match's similarity is low. For queries outside YOLO-World's vocabulary, top-K returns visually unrelated objects with high confidence. The agent then runs the new tools on the wrong object.
+
+**Fixes worth trying (priority order):**
+1. **Tighten the extended prompt** so the "use the new tools" instruction is scoped to phrases that match size/distance/room-size question templates only, leaving everything else on the basic flow. Should recover most of the route_planning/obj_appearance_order regressions.
+2. **Add a similarity floor** to `retrieve_objects_by_appearance` — if the top result's CLIP-cosine is below some threshold, return "no objects matching that description in this scene" instead of nonsense. Prevents the wrong-object → wrong-dimensions chain.
+3. **Suppress `get_object_dimensions` output for low-visibility objects** — if an object is visible in <N frames, the AABB is unreliable; return "insufficient frames" instead of a number, so the agent falls back to the VLM. Same principle as #2 — fail gracefully when the data is bad.
+4. **Relax re-ID thresholds** for MASt3R-noisy poses (Visual 0.45 → 0.30, IoU 0.20 → 0.05) and rebuild memory. Would help all tasks, but expensive to rebuild and untested.
+
 ## Artifacts
 
 On the server (`~/github-projects/bit-final-project/`):
 - `results/subset_fixed.jsonl` — original post-fix 100-question subset (30.68 overall)
-- `results/_trace_picks.json` — the 20 worst-failing questions
-- `results/_trace_rerun.jsonl` — same 20, basic schema, with traces
-- `results/_trace_rerun_extended.jsonl` — same 20, extended schema, no counting tool
-- `results/_trace_rerun_extended2.jsonl` — same 20, extended schema + counting tool
+- `results/dev500.jsonl` — basic-schema dev500 (pre-hfov-fix; 25.30 overall)
+- `results/dev500_extended.jsonl` — extended-schema dev500 (post-hfov-fix; 22.23 overall)
+- `results/_trace_picks.json` / `_trace_rerun.jsonl` / `_trace_rerun_extended.jsonl` / `_trace_rerun_extended2.jsonl` — worst-20 traced runs (basic, extended, extended+counting)
+- `results/_size_picks.json` — 10 worst object_size_estimation rows from dev500_extended
+- `results/_trace_size.jsonl` — same 10 with intermediate_steps captured (the investigation above)
 - `cache/vsibench/{scene}/_inspect/{preprocess,memory}.html` — per-scene inspector HTML
 
 In repo (under `notes/_assets/`): the two annotated screenshots above.
