@@ -6,6 +6,13 @@ default_vlm: internvl2-8b
 #   EVA_PLANNER=qwen2.5-7b-text-bf16  EVA_VLM=internvl2-8b-bf16
 # Both URLs are localhost on the driver: Qwen runs locally on morgen, InternVL2
 # runs on neo and is reached through the SSH tunnel opened by _tunnel.sh.
+#
+# To run the SenseNova-SI ("si") stack (Su's recommendation, 2026-05-14):
+# planner = vanilla InternVL3-8B, VLM = spatial-intelligence-enhanced
+# SenseNova-SI-1.5-InternVL3-8B. Start servers via 03_start_servers_si.sh and:
+#   EVA_PLANNER=internvl3-8b-text-bf16  EVA_VLM=sensenova-si-1.5-internvl3-8b-bf16
+# Same morgen:18000 + neo:18001 topology as bf16; the three stacks share ports
+# so only one can be up at a time.
 
 models:
   internvl2-8b:
@@ -44,6 +51,34 @@ models:
     api_key: EMPTY
     model_name: Qwen/Qwen2.5-7B-Instruct
     multimodal: false
+    generation:
+      temperature: 0.0
+      max_tokens: 1024
+
+  # InternVL3-8B vanilla base — text-only planner for the SI stack.
+  # The model is multimodal, but we use it as a text-only planner; multimodal=false
+  # so the agent's _build_planner_llm picks this entry's base_url (port 18000) and
+  # never sends images. Served by 03_start_servers_si.sh on morgen.
+  internvl3-8b-text-bf16:
+    backend: openai_compatible
+    base_url: http://localhost:18000/v1
+    api_key: EMPTY
+    model_name: OpenGVLab/InternVL3-8B
+    multimodal: false
+    generation:
+      temperature: 0.0
+      max_tokens: 1024
+
+  # SenseNova-SI-1.5-InternVL3-8B — spatial-intelligence-enhanced VLM from the
+  # "Scaling Spatial Intelligence with Multimodal Foundation Models" paper
+  # (arxiv 2511.13719). Served by 03_start_servers_si.sh on neo, reached through
+  # the morgen->neo SSH tunnel on port 18001.
+  sensenova-si-1.5-internvl3-8b-bf16:
+    backend: openai_compatible
+    base_url: http://localhost:18001/v1
+    api_key: EMPTY
+    model_name: sensenova/SenseNova-SI-1.5-InternVL3-8B
+    multimodal: true
     generation:
       temperature: 0.0
       max_tokens: 1024

@@ -38,6 +38,20 @@ def test_load_internvl_2_5():
     assert model.model == "OpenGVLab/InternVL2_5-8B"
 
 
+def test_load_internvl3_8b_text_bf16():
+    model = load_model("internvl3-8b-text-bf16")
+    assert model.backend == "openai_compatible"
+    assert model.model == "OpenGVLab/InternVL3-8B"
+    assert model.multimodal is False
+
+
+def test_load_sensenova_si_1_5():
+    model = load_model("sensenova-si-1.5-internvl3-8b-bf16")
+    assert model.backend == "openai_compatible"
+    assert model.model == "sensenova/SenseNova-SI-1.5-InternVL3-8B"
+    assert model.multimodal is True
+
+
 def test_load_azure_gpt4o():
     model = load_model("gpt-4o")
     assert model.backend == "azure_openai"
