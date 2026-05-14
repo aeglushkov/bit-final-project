@@ -69,6 +69,7 @@ def run(
     pre_prompt: str = "These are frames of a video.",
     max_tokens: int = 16,
     only_cached: bool = True,
+    id_filter: set[str] | None = None,
 ) -> dict:
     """Run the raw-VLM baseline on VSI-Bench."""
     from datasets import load_dataset
@@ -86,7 +87,12 @@ def run(
     ds = load_dataset("nyu-visionx/VSI-Bench", split="test")
     candidate = [i for i in range(len(ds)) if (cached_scenes is None or ds[i]["scene_name"] in cached_scenes)]
 
-    if limit is not None and limit < len(candidate):
+    # id_filter pins evaluation to a specific set of question ids; used to
+    # reproduce a prior run's exact 100 IDs when the candidate pool has since
+    # changed. Takes precedence over limit/stratified.
+    if id_filter is not None:
+        indices = [i for i in candidate if str(ds[i].get("id", i)) in id_filter]
+    elif limit is not None and limit < len(candidate):
         if stratified:
             sub_qtypes = [ds[i]["question_type"] for i in candidate]
             sub_idxs = stratified_indices(sub_qtypes, total=limit, seed=seed)

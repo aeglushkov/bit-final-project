@@ -54,6 +54,7 @@ def load_dataset_indices(
     stratified: bool,
     seed: int,
     scene_filter: set[str] | None = None,
+    id_filter: set[str] | None = None,
 ):
     from datasets import load_dataset
 
@@ -61,6 +62,12 @@ def load_dataset_indices(
     candidate = list(range(len(ds)))
     if scene_filter is not None:
         candidate = [i for i in candidate if ds[i]["scene_name"] in scene_filter]
+    # id_filter pins evaluation to a specific set of question ids; used to
+    # reproduce a prior run's exact 100 IDs when the candidate pool has since
+    # changed (e.g., more scenes cached). Takes precedence over limit/stratified.
+    if id_filter is not None:
+        keep = [i for i in candidate if str(ds[i].get("id", i)) in id_filter]
+        return ds, keep
     if limit is None or limit >= len(candidate):
         return ds, candidate
     if stratified:
@@ -95,6 +102,7 @@ def run(
     on_missing_cache: str = "skip",
     only_cached: bool = True,
     resume: bool = False,
+    id_filter: set[str] | None = None,
 ) -> dict:
     """Run VSI-Bench through the EVA agent. Writes one JSONL row per question
     to `output` and returns the aggregated metrics."""
@@ -114,7 +122,8 @@ def run(
         print(f"Restricting to {len(cached_scenes)} cached scenes")
 
     ds, indices = load_dataset_indices(
-        limit=limit, stratified=stratified, seed=seed, scene_filter=cached_scenes
+        limit=limit, stratified=stratified, seed=seed,
+        scene_filter=cached_scenes, id_filter=id_filter,
     )
     by_scene = group_by_scene(ds, indices)
     print(f"Evaluating {len(indices)} questions across {len(by_scene)} scenes")

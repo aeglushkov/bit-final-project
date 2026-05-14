@@ -35,7 +35,30 @@ def main():
         help="If --output already exists, skip questions whose IDs are already "
              "answered without error and append the rest.",
     )
+    ap.add_argument(
+        "--ids-file",
+        type=Path,
+        default=None,
+        help="Path to a file with one question id per line (or a JSONL with an "
+             "'id' field per row). When set, evaluate exactly those ids and "
+             "ignore --limit / --no-stratified.",
+    )
     args = ap.parse_args()
+
+    id_filter: set[str] | None = None
+    if args.ids_file is not None:
+        ids: set[str] = set()
+        for raw in args.ids_file.read_text().splitlines():
+            raw = raw.strip()
+            if not raw:
+                continue
+            if raw.startswith("{"):
+                import json
+                ids.add(str(json.loads(raw)["id"]))
+            else:
+                ids.add(raw)
+        id_filter = ids
+        print(f"--ids-file: {len(id_filter)} ids loaded from {args.ids_file}")
 
     run(
         cache_root=args.cache_root,
@@ -50,6 +73,7 @@ def main():
         on_missing_cache=args.on_missing_cache,
         only_cached=not args.all_scenes,
         resume=args.resume,
+        id_filter=id_filter,
     )
 
 
