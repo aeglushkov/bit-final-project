@@ -9,12 +9,14 @@ PROMPT_PATH = Path(__file__).resolve().parents[1] / "prompts" / "react_vqa.txt"
 
 
 def _build_planner_llm(planner_name: str | None):
+    import os
+
     from langchain_openai import AzureChatOpenAI, ChatOpenAI
 
     from eva_eval.llm.client import load_config
 
     cfg = load_config()
-    name = planner_name or cfg["default_planner"]
+    name = planner_name or os.environ.get("EVA_PLANNER") or cfg["default_planner"]
     if name not in cfg["models"]:
         raise KeyError(f"Planner {name!r} not in config")
     m = cfg["models"][name]

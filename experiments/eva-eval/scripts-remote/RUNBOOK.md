@@ -29,14 +29,26 @@ Steps run in order. Each ends with `DONE_<NAME>` in its log when finished.
 | 0 | `00_video_download` | Pull 3 zips from HF + extract → `data/vsibench-videos/` (~50 GB) | 30-60 min |
 | 1 | `01_smoke_phase2 [video.mp4]` | MASt3R-SfM on 1 video → `cache/vsibench/<id>/` | 5-10 min |
 | 2 | `02_smoke_phase3 [scene_id]` | Build ObjectMemory for 1 scene | 1-2 min |
-| 3 | `03_start_servers` | Spin up Qwen on :18000 + InternVL2 on :18001 | 1-2 min |
+| 3 | `03_start_servers` | Spin up AWQ Qwen on :18000 + AWQ InternVL2 on :18001 (single-host morgen) | 1-2 min |
+| 3b | `03_start_servers_bf16` | bf16 Qwen on morgen + bf16 InternVL2 on neo, joined by SSH tunnel | 3-5 min |
 | 4 | `05_smoke_phase5 [n=20]` | Run N questions through the full agent | 3-10 min |
 | 5 | `06_full_phase2` | MASt3R on **all** 288 videos (resumable) | 6-10 hours |
 | 6 | `07_full_phase3` | Build memory for **all** scenes (resumable) | 3-5 hours |
 | 7 | `08_dev500` | 500-question stratified eval | 30-60 min |
 | 8 | `09_full_eval [name]` | Full ~5000-question sweep | 10-15 hours |
+| 9 | `10_baseline [n] [vlm] [nfr]` | Raw-VLM baseline on lmdeploy (AWQ INT4) | 30 min |
+| 10 | `10b_authors_baseline [n]` | Raw-VLM baseline on authors' unmodified lmms-eval (full-precision bf16, native frame template); needs `.conda/envs/vsibench` from `literature/thinking-in-space/CLAUDE.md` install steps | 30-60 min |
 
-Stop servers when done evaluating: `./experiments/eva-eval/scripts-remote/04_stop_servers.sh`
+Stop servers when done evaluating:
+- AWQ stack: `./experiments/eva-eval/scripts-remote/04_stop_servers.sh`
+- bf16 split stack: `./experiments/eva-eval/scripts-remote/04_stop_servers_bf16.sh`
+
+To run evaluations against the bf16 split stack, set the model overrides on
+the eval driver before invoking 05/08/09:
+```bash
+export EVA_PLANNER=qwen2.5-7b-text-bf16
+export EVA_VLM=internvl2-8b-bf16
+```
 
 ## Launching anything
 

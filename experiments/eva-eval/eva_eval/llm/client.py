@@ -76,14 +76,16 @@ def load_model(name: str, config_path: str | Path | None = None) -> ChatModel:
 
 def load_default_planner(config_path: str | Path | None = None) -> ChatModel:
     cfg = load_config(config_path)
-    return load_model(cfg["default_planner"], config_path=config_path)
+    name = os.environ.get("EVA_PLANNER") or cfg["default_planner"]
+    return load_model(name, config_path=config_path)
 
 
 def load_default_vlm(config_path: str | Path | None = None) -> ChatModel:
     cfg = load_config(config_path)
-    model = load_model(cfg["default_vlm"], config_path=config_path)
+    name = os.environ.get("EVA_VLM") or cfg["default_vlm"]
+    model = load_model(name, config_path=config_path)
     if not model.multimodal:
-        raise ValueError(f"default_vlm={cfg['default_vlm']!r} is not configured as multimodal")
+        raise ValueError(f"VLM {name!r} is not configured as multimodal")
     return model
 
 

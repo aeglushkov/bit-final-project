@@ -1,6 +1,12 @@
 default_planner: qwen2.5-7b-text
 default_vlm: internvl2-8b
 
+# To run the full-precision (non-AWQ) split-host stack instead of the default
+# AWQ single-host stack, start servers via 03_start_servers_bf16.sh and set:
+#   EVA_PLANNER=qwen2.5-7b-text-bf16  EVA_VLM=internvl2-8b-bf16
+# Both URLs are localhost on the driver: Qwen runs locally on morgen, InternVL2
+# runs on neo and is reached through the SSH tunnel opened by _tunnel.sh.
+
 models:
   internvl2-8b:
     backend: openai_compatible
@@ -12,11 +18,31 @@ models:
       temperature: 0.0
       max_tokens: 1024
 
+  internvl2-8b-bf16:
+    backend: openai_compatible
+    base_url: http://localhost:18001/v1
+    api_key: EMPTY
+    model_name: OpenGVLab/InternVL2-8B
+    multimodal: true
+    generation:
+      temperature: 0.0
+      max_tokens: 1024
+
   qwen2.5-7b-text:
     backend: openai_compatible
     base_url: http://localhost:18000/v1
     api_key: EMPTY
     model_name: Qwen/Qwen2.5-7B-Instruct-AWQ
+    multimodal: false
+    generation:
+      temperature: 0.0
+      max_tokens: 1024
+
+  qwen2.5-7b-text-bf16:
+    backend: openai_compatible
+    base_url: http://localhost:18000/v1
+    api_key: EMPTY
+    model_name: Qwen/Qwen2.5-7B-Instruct
     multimodal: false
     generation:
       temperature: 0.0

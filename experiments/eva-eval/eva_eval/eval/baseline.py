@@ -19,10 +19,17 @@ from eva_eval.eval.vsibench import format_question, parse_final_answer
 from eva_eval.llm.client import load_model
 
 
-def _encode_image_b64(path: Path) -> str:
+def _encode_image_b64(path: Path, resize: tuple[int, int] | None = (448, 448)) -> str:
+    """Encode a frame as base64 JPEG. Resizes to 448×448 by default so the
+    receiving InternVL2 server's dynamic_preprocess picks a 1×1 aspect ratio
+    (1 patch + 1 thumbnail per frame = ~512 visual tokens). Original-size
+    frames trigger up to 13 patches per frame at max_dynamic_patch=12, which
+    blows past lmdeploy's session-len for 8-frame inputs at bf16."""
     from PIL import Image
 
     img = Image.open(path).convert("RGB")
+    if resize is not None:
+        img = img.resize(resize)
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=85)
     return base64.b64encode(buf.getvalue()).decode("ascii")
