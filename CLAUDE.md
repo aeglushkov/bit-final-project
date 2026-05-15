@@ -36,6 +36,20 @@ paper-thinking-in-space/
 
 **Convention for adding a new paper:** create `literature/<paper-name>/` with the PDF, summary.md, analysis.md, and optionally `code/` for authors' code.
 
+## Infrastructure (where the pipeline runs)
+
+Two GPU servers — full ops detail at `experiments/eva-eval/scripts-remote/RUNBOOK.md`.
+
+- **morgen** (185.71.171.85, RTX 3090 24 GB): primary box. Full repo, all caches, all eval drivers run here. SSH details in `~/PycharmProjects/.morgen`.
+- **neo** (185.71.171.86, RTX 5090 32 GB): bf16 VLM box. Reached via SSH tunnel from morgen. SSH details in `~/PycharmProjects/.neo`.
+
+Three serving stacks (mutually exclusive — they share ports 18000/18001 on morgen):
+- **AWQ single-host** (default): both LLMs on morgen. Start `03_start_servers`, no env vars.
+- **bf16 split**: Qwen-bf16 on morgen + InternVL2-bf16 on neo via SSH tunnel. Start `03_start_servers_bf16`, then `export EVA_PLANNER=qwen2.5-7b-text-bf16; export EVA_VLM=internvl2-8b-bf16` on the eval driver.
+- **SI split** (Su's 2026-05-14 backbone swap): vanilla InternVL3-8B planner on morgen + SenseNova-SI-1.5-InternVL3-8B VLM on neo. Start `03_start_servers_si`, then `export EVA_PLANNER=internvl3-8b-text-bf16; export EVA_VLM=sensenova-si-1.5-internvl3-8b-bf16`.
+
+Always stop the current stack before starting another (`04_stop_servers[_bf16|_si].sh`).
+
 `summary.md` must follow [`literature/SUMMARY_TEMPLATE.md`](literature/SUMMARY_TEMPLATE.md) — a concise card with 5 emoji-prefixed sections (🏷️ SUBJECT, ❓ PROBLEM, 💡 IDEA, 🛠️ SOLUTION, 🏆 RESULTS) plus an optional 💭 THOUGHTS block. Keep it scannable; deeper method, dataset, and training detail belongs in `analysis.md`.
 
 ## Setup & Installation (authors' evaluation code)
