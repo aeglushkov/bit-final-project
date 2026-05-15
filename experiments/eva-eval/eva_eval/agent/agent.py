@@ -87,5 +87,6 @@ def build_agent(
         verbose=False,
         max_iterations=max_iterations,
         handle_parsing_errors=True,
+        return_intermediate_steps=True,
     )
     return executor, ctx

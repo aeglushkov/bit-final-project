@@ -49,6 +49,33 @@ def parse_final_answer(response: Any) -> str:
     return text
 
 
+def serialize_trajectory(intermediate_steps: Any, max_obs_chars: int = 1000) -> list[dict]:
+    """Flatten LangChain AgentExecutor's intermediate_steps to JSONL-safe rows.
+
+    Each step is a (AgentAction, observation) tuple. We keep:
+      - the planner's `Thought:` text (everything in `.log` before `Action:`)
+      - the tool name and (stringified) input
+      - the observation, truncated so VLM caption paragraphs don't blow up the JSONL
+    """
+    out: list[dict] = []
+    for step in intermediate_steps or []:
+        if not isinstance(step, (list, tuple)) or len(step) != 2:
+            continue
+        action, obs = step
+        log = getattr(action, "log", "") or ""
+        thought = log.split("Action:", 1)[0].strip()
+        obs_str = "" if obs is None else str(obs)
+        if len(obs_str) > max_obs_chars:
+            obs_str = obs_str[:max_obs_chars] + "...[truncated]"
+        out.append({
+            "thought": thought,
+            "tool": getattr(action, "tool", "") or "",
+            "tool_input": str(getattr(action, "tool_input", "")),
+            "observation": obs_str,
+        })
+    return out
+
+
 def load_dataset_indices(
     limit: int | None,
     stratified: bool,
@@ -181,9 +208,12 @@ def run(
             for qi in remaining:
                 doc = ds[qi]
                 user_text = format_question(doc, pre_prompt=VSIBENCH_PRE_PROMPT)
+                trajectory: list[dict] = []
                 try:
                     response = executor.invoke({"input": user_text})
                     pred = parse_final_answer(response)
+                    if isinstance(response, dict):
+                        trajectory = serialize_trajectory(response.get("intermediate_steps"))
                     err = None
                 except Exception as e:
                     pred = ""
@@ -200,6 +230,7 @@ def run(
                     "prediction": pred,
                     "score": score,
                     "error": err,
+                    "trajectory": trajectory,
                 }
                 scored.append(row)
                 out_f.write(json.dumps(row, default=str) + "\n")
