@@ -21,6 +21,7 @@ ATTENTION:
 3. Once the relevant frames are located, use frame_VQA to ask questions about these frames.
 4. For "where" questions, interpret them as spatial location queries, not as requests to identify specific frames. Use frame_VQA to provide these answers.
 5. If the information is insufficient for a precise response, generate a response based on the available data.
+6. For "How many X(s) are in this room?" counting questions: when retrieve_objects_by_appearance or retrieve_objects_by_environment returns no candidate whose description matches the target noun X, your Final Answer MUST be exactly "0". Do not guess a non-zero count. A captioned object that is described as something different from X (e.g., the query was "stool" but the caption says "cabinet" or "bench") does NOT count as a match.
 
 Use the following format:
 
