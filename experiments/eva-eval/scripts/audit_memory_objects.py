@@ -48,17 +48,18 @@ def _load_yolo_classes(paper_code_dir: Path) -> set[str]:
 
 # VSI-Bench counting questions of the form
 # "How many <noun>(s) are in this room?" — pull the noun out so we can pivot
-# the memory's category histogram.
-_COUNTING_NOUN_RE = re.compile(r"how many ([a-z][a-z\- ]+?)s?\s+(?:are|in|is)", re.IGNORECASE)
+# the memory's category histogram. The "(s)" suffix is literal in the dataset.
+_COUNTING_NOUN_RE = re.compile(r"how many\s+([a-z][a-z\- ]+?)\s*\(s\)", re.IGNORECASE)
 
 
 def _extract_target_noun(question: str) -> str | None:
     m = _COUNTING_NOUN_RE.search(question)
     if not m:
+        # Fall back to the "How many X are/is in this room" form without "(s)".
+        m = re.search(r"how many\s+([a-z][a-z\- ]+?)\s+(?:are|is)\s+in", question, re.IGNORECASE)
+    if not m:
         return None
-    noun = m.group(1).strip().lower()
-    # Strip a trailing plural 's' if the regex left one through ("boxes" → "boxe", retry).
-    return noun
+    return m.group(1).strip().lower()
 
 
 def _count_by_category(memory_state: dict[str, Any]) -> Counter:
