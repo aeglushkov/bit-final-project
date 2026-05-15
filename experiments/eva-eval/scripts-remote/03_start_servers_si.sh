@@ -89,7 +89,7 @@ else
          export HF_HOME=${NEO_HF_HOME}
          export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
          setsid -f bash -c \"
-             ${NEO_LMDEPLOY_BIN} serve api_server \\\$HOME/hf-cache/SenseNova-SI-1.5-InternVL3-8B \
+             ${NEO_LMDEPLOY_BIN} serve api_server \\\$HOME/hf-cache/SenseNova-SI-1_5-InternVL3-8B \
                  --model-name sensenova/SenseNova-SI-1.5-InternVL3-8B \
                  --server-name 127.0.0.1 \
                  --server-port 18001 \
