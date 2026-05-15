@@ -21,6 +21,7 @@ ATTENTION:
 3. Once the relevant frames are located, use frame_VQA to ask questions about these frames.
 4. For "where" questions, interpret them as spatial location queries, not as requests to identify specific frames. Use frame_VQA to provide these answers.
 5. If the information is insufficient for a precise response, generate a response based on the available data.
+6. You MUST call at least one of [frame_VQA, object_VQA, retrieve_objects_by_appearance, retrieve_objects_by_environment, query_db] before emitting Final Answer. Calling only frame_localization is NOT sufficient — frame_localization returns frame IDs, not visual content; you must then open at least one frame via frame_VQA or inspect at least one object via object_VQA. Do not answer from the question text alone.
 
 Use the following format:
 
